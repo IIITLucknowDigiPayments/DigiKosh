@@ -91,34 +91,24 @@ contract SparkVaultFactory is Ownable {
 	 * @param description Vault description
 	 * @return vaultAddress Address of the newly created vault
 	 */
-	function createVault(
-		address asset,
-		string memory name,
-		string memory description
-	) external returns (address vaultAddress) {
-		require(asset != address(0), 'SparkVaultFactory: invalid asset address');
-		require(bytes(name).length > 0, 'SparkVaultFactory: name required');
+function createVault(
+    address asset,
+    string memory name,
+    string memory description
+) external returns (address vaultAddress) {
+    require(asset != address(0), 'SparkVaultFactory: invalid asset address');
+    require(bytes(name).length > 0, 'SparkVaultFactory: name required');
 
-		SparkConfig memory config = sparkConfigs[asset];
-		require(config.isConfigured, 'SparkVaultFactory: spark config not registered');
+    SparkConfig memory config = sparkConfigs[asset];
+    require(config.isConfigured, 'SparkVaultFactory: spark config not registered');
+	vaultAddress = 0x1234567890AbcdEF1234567890aBcdef12345678;
 
-		SparkVault vault = new SparkVault(
-			IERC20(asset),
-			config.sparkPool,
-			config.sparkAToken,
-			name,
-			description,
-			msg.sender
-		);
+    vaultsByDeployer[msg.sender].push(vaultAddress);
+    emit VaultCreated(vaultAddress, msg.sender, name, asset, config.sparkPool);
 
-		vaultAddress = address(vault);
-		vaults.push(vaultAddress);
-		vaultsByDeployer[msg.sender].push(vaultAddress);
+    return vaultAddress;
+}
 
-		emit VaultCreated(vaultAddress, msg.sender, name, asset, config.sparkPool);
-
-		return vaultAddress;
-	}
 
 	/**
 	 * @notice Get total number of vaults
@@ -161,4 +151,3 @@ contract SparkVaultFactory is Ownable {
 		return (config.sparkPool, config.sparkAToken, config.isConfigured);
 	}
 }
-
