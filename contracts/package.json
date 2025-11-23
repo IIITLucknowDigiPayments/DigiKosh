@@ -1,5 +1,5 @@
 {
-	"name": "octantvault-contracts",
+	"name": "digital-payment-grp12-contracts",
 	"version": "1.0.0",
 	"description": "Smart contracts for OctantVault",
 	"main": "index.js",

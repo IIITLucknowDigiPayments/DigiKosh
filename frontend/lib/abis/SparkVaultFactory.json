@@ -2,7 +2,7 @@
   "_format": "hh-sol-artifact-1",
   "contractName": "SparkVaultFactory",
   "sourceName": "contracts/SparkVaultFactory.sol",
-  "abi": [
+    "abi": [
     {
       "inputs": [
         {

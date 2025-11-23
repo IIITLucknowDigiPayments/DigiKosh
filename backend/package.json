@@ -1,5 +1,5 @@
 {
-	"name": "octantvault-backend",
+	"name": "digital-payment-grp12-backend",
 	"version": "1.0.0",
 	"description": "Backend API for OctantVault - Indexing blockchain events and serving data",
 	"main": "dist/index.js",
