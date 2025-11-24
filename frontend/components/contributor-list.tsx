@@ -20,6 +20,7 @@ interface ContributorListProps {
 }
 
 export function ContributorList({ contributors }: ContributorListProps) {
+  console.log('Rendering ContributorList with contributors:', contributors)
   if (contributors.length === 0) {
     return (
       <Card>

@@ -173,13 +173,31 @@ export function useAddContributor() {
 		const allocation = parseEther(monthlyAllocation)
 
 		try {
+			console.log("before write contract", registryAddress, vaultAddress, wallet, name, role, allocation);
 			writeContract({
 				address: registryAddress as Address,
 				abi,
 				functionName: 'addContributor',
 				args: [vaultAddress, wallet, name, role, allocation],
 			})
+
+			const apiBase = process.env.NEXT_PUBLIC_API_URL || '';
+            const res = await fetch(`http://localhost:3001/api/v1/contributors`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    vault: vaultAddress,
+                    wallet,
+                    name,
+                    role,
+                    monthlyAllocation,
+                }),
+            })
+
+			console.log("after write contract", res);
+
 		} catch (error: any) {
+			console.log("got error- ", error)
 			toast({
 				title: 'Error',
 				description: error.message || 'Failed to add contributor',

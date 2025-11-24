@@ -5,4 +5,5 @@ export const contributorRoutes = Router()
 
 contributorRoutes.get('/', (req, res) => contributorController.getAllContributors(req, res))
 contributorRoutes.get('/vault/:vaultAddress', (req, res) => contributorController.getVaultContributors(req, res))
+contributorRoutes.post('/', (req, res) => contributorController.createContributor(req, res))
 

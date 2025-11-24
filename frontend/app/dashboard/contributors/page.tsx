@@ -22,6 +22,7 @@ export default function ContributorsPage() {
   const { vaults } = useAllVaults()
   const { contributors: contributorAddresses, contributorData: contractContributorData, isLoading: isLoadingContributors, refetch: refetchContractContributors } = useVaultContributors(selectedVault)
   const { data: apiContributors, isLoading: isLoadingApi, refetch: refetchApiContributors } = useApiContributors(selectedVault)
+  const [backendContributors, setBackendContributors] = useState<any[] | null>(null)
 
   // Refetch contributors when vault selection changes
   useEffect(() => {
@@ -31,6 +32,54 @@ export default function ContributorsPage() {
     }
   }, [selectedVault, refetchContractContributors, refetchApiContributors])
 
+  
+  // Fetch contributors from backend when a vault is selected
+  useEffect(() => {
+    const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'
+    if (!selectedVault) {
+      setBackendContributors(null)
+      return
+    }
+
+    let mounted = true;
+
+    (async () => {
+      try {
+        const res = await fetch(`${apiBase}/contributors/vault/${selectedVault}`)
+        const json = await res.json()
+        console.log('Fetched backend contributors response:', json)
+        if (!mounted) return
+        if (res.ok && json.success) {
+          setBackendContributors(json.data || [])
+        } else {
+          console.error('Failed to fetch backend contributors', json)
+          setBackendContributors([])
+        }
+      } catch (err) {
+        if (!mounted) return
+        console.error('Error fetching backend contributors', err)
+        setBackendContributors([])
+      }
+    })()
+
+    return () => { mounted = false }
+  }, [selectedVault])
+  
+  const normalizedBackendContributors = useMemo(() => {
+    if (!backendContributors || !Array.isArray(backendContributors)) return []
+    console.log('Normalizing backend contributors:', backendContributors)
+    return backendContributors.map((c: any) => ({
+      id: c._id || c.wallet,
+      name: c.name || 'Unnamed Contributor',
+      role: c.role || 'No role',
+      wallet: c.wallet,
+      status: c.isActive ? "active" as const : "pending" as const,
+      totalEarned: `$${Number(formatEther(BigInt(c.totalEarned || '0'))).toLocaleString(undefined, { maximumFractionDigits: 2 })}`,
+      monthlyAllocation: `$${Number(formatEther(BigInt(c.monthlyAllocation || '0'))).toLocaleString(undefined, { maximumFractionDigits: 2 })}`,
+      joinDate: c.createdAt ? new Date(c.createdAt).toISOString().split('T')[0] : 'N/A',
+    }))
+  }, [backendContributors])
+
   const contributors = useMemo(() => {
     if (!selectedVault) return []
     
@@ -38,9 +87,18 @@ export default function ContributorsPage() {
     if (contractContributorData && contractContributorData.length > 0) {
       
       // Create a map of API data by wallet address for merging
+      // const apiDataMap = new Map()
+      // if (apiContributors?.success && apiContributors.data) {
+      //   apiContributors.data.forEach((c: any) => {
+      //     apiDataMap.set(c.wallet?.toLowerCase(), c)
+      //   })
+      // }
+
       const apiDataMap = new Map()
-      if (apiContributors?.success && apiContributors.data) {
-        apiContributors.data.forEach((c: any) => {
+      // prefer hook data, fall back to explicit backend fetch
+      const apiList = apiContributors?.success && apiContributors.data ? apiContributors.data : backendContributors
+      if (apiList && Array.isArray(apiList)) {
+        apiList.forEach((c: any) => {
           apiDataMap.set(c.wallet?.toLowerCase(), c)
         })
       }
@@ -55,7 +113,7 @@ export default function ContributorsPage() {
             name: c.name || apiData?.name || 'Unnamed Contributor',
             role: c.role || apiData?.role || 'No role',
             wallet: c.wallet,
-            status: c.isActive ? 'active' : 'inactive',
+            status: c.isActive ? "active" as const : "pending" as const,
             totalEarned: `$${Number(formatEther(c.totalEarned || 0n)).toLocaleString(undefined, { maximumFractionDigits: 2 })}`,
             monthlyAllocation: `$${Number(formatEther(c.monthlyAllocation || 0n)).toLocaleString(undefined, { maximumFractionDigits: 2 })}`,
             joinDate: apiData?.createdAt ? new Date(apiData.createdAt).toISOString().split('T')[0] : 'N/A',
@@ -70,7 +128,7 @@ export default function ContributorsPage() {
         name: c.name,
         role: c.role,
         wallet: c.wallet,
-        status: c.isActive ? 'active' : 'inactive',
+        status: c.isActive ? "active" as const : "pending" as const,
         totalEarned: `$${Number(formatEther(BigInt(c.totalEarned || '0'))).toLocaleString(undefined, { maximumFractionDigits: 2 })}`,
         monthlyAllocation: `$${Number(formatEther(BigInt(c.monthlyAllocation || '0'))).toLocaleString(undefined, { maximumFractionDigits: 2 })}`,
         joinDate: c.createdAt ? new Date(c.createdAt).toISOString().split('T')[0] : 'N/A',
@@ -78,7 +136,7 @@ export default function ContributorsPage() {
     }
     
     return []
-  }, [selectedVault, apiContributors, contractContributorData])
+  }, [selectedVault, apiContributors, contractContributorData, backendContributors, normalizedBackendContributors])
 
   const filteredContributors = useMemo(() => {
     return contributors.filter(
@@ -166,6 +224,7 @@ export default function ContributorsPage() {
             <TabsTrigger value="all">All ({filteredContributors.length})</TabsTrigger>
             <TabsTrigger value="active">Active</TabsTrigger>
             <TabsTrigger value="pending">Pending Approval</TabsTrigger>
+            <TabsTrigger value="backend">Backend ({normalizedBackendContributors.length})</TabsTrigger>
           </TabsList>
 
           <TabsContent value="all" className="space-y-4">
@@ -181,6 +240,20 @@ export default function ContributorsPage() {
               <CardContent className="p-6 text-center text-foreground/70">No pending contributor requests</CardContent>
             </Card>
           </TabsContent>
+
+            <TabsContent value="backend" className="space-y-4">
+              {
+              
+              normalizedBackendContributors.length === 0 ? (
+                <Card>
+                  <CardContent className="p-12 text-center">
+                    <p className="text-foreground/70">No backend contributors for this vault</p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <ContributorList contributors={normalizedBackendContributors} />
+              )}
+            </TabsContent>
         </Tabs>
       )}
 

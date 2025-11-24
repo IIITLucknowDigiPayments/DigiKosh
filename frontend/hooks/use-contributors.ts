@@ -3,6 +3,7 @@
 import { useReadContract } from 'wagmi'
 import { useContributorRegistry } from './use-contracts'
 import { Address } from 'viem'
+import { useCallback, useEffect, useState } from 'react'
 
 export interface Contributor {
 	vault: Address
@@ -44,11 +45,62 @@ export function useVaultContributors(vaultAddress?: Address) {
 		}
 	}
 
+	// Backend fallback state (fetch when contract returns nothing)
+	const [backendWallets, setBackendWallets] = useState<Address[] | undefined>(undefined)
+	const [isLoadingBackend, setIsLoadingBackend] = useState(false)
+
+	const fetchBackendContributors = useCallback(async (vault?: Address) => {
+		if (!vault) {
+			setBackendWallets(undefined)
+			return
+		}
+		const apiBase = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/api/v1'
+		setIsLoadingBackend(true)
+		try {
+			const res = await fetch(`${apiBase}/contributors/vault/${vault}`)
+			const json = await res.json()
+			if (res.ok && json.success && Array.isArray(json.data)) {
+				const walletsFromBackend = json.data.map((c: any) => (c.wallet as Address))
+				setBackendWallets(walletsFromBackend)
+			} else {
+				setBackendWallets([])
+			}
+		} catch (err) {
+			setBackendWallets([])
+		} finally {
+			setIsLoadingBackend(false)
+		}
+	}, [])
+
+	// Fetch backend contributors when vault changes and contract list is missing/empty
+	useEffect(() => {
+		if (!vaultAddress) {
+			setBackendWallets(undefined)
+			return
+		}
+
+		// If contract returned no wallets (undefined or empty), fetch backend
+		if (!wallets || (Array.isArray(wallets) && wallets.length === 0)) {
+			fetchBackendContributors(vaultAddress)
+		} else {
+			// we have contract wallets, clear backend fallback
+			setBackendWallets(undefined)
+		}
+	}, [vaultAddress, wallets, fetchBackendContributors])
+
+	// provide a refetch that refreshes both contract and backend sources
+	const refetchAll = useCallback(async () => {
+		await refetch?.()
+		await fetchBackendContributors(vaultAddress)
+	}, [refetch, fetchBackendContributors, vaultAddress])
+
+	const finalWallets = (wallets && wallets.length > 0) ? wallets : backendWallets
+
 	return {
-		contributors: wallets,
+		contributors: finalWallets,
 		contributorData,
-		isLoading,
-		refetch,
+		isLoading: isLoading || isLoadingBackend,
+		refetch: refetchAll,
 	}
 }
 
