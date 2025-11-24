@@ -10,8 +10,8 @@ const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "DigiKosh - Yield-Powered Salaries for Public Goods",
-  description: "Sustainable funding for public goods using Spark's curated yield. Deploy ERC-4626 vaults that stream yield to your team.",
+  title: "Digikosh – The Sacred Finance Platform for Temples & Religious Trusts",
+  description: "Preserve your temple corpus. Automate monthly expenses. Build a self-sustaining future. Transform donations into perpetual income streams with 8-15% annual returns.",
   generator: "v0.app",
   icons: {
     icon: [

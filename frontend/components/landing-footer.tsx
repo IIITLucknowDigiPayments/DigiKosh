@@ -11,7 +11,7 @@ interface LandingFooterProps {
 
 export function LandingFooter({ onGetStarted }: LandingFooterProps) {
   return (
-    <footer className="relative px-4 sm:px-6 lg:px-8 py-16 overflow-hidden border-t border-border/30">
+    <footer className="relative px-4 sm:px-6 lg:px-8 py-10 overflow-hidden border-t border-border/30">
       <div className="absolute inset-0 bg-gradient-to-b from-transparent via-primary/5 to-primary/10" />
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom,rgba(120,119,198,0.1),transparent_50%)]" />
       
@@ -20,16 +20,16 @@ export function LandingFooter({ onGetStarted }: LandingFooterProps) {
           <div className="md:col-span-2">
             <div className="flex items-center gap-3 mb-4 group cursor-pointer">
               <DigiKoshLogo size="md" animated={true} />
-              <span className="font-bold text-2xl bg-gradient-to-r from-violet-600 via-purple-600 to-fuchsia-600 bg-clip-text text-transparent group-hover:from-violet-500 group-hover:via-purple-500 group-hover:to-fuchsia-500 transition-all duration-300">
-                DigiKosh
+              <span className="font-bold text-2xl bg-gradient-to-r from-[#0B5A7C] via-[#1077A3] to-[#C8861D] bg-clip-text text-transparent group-hover:from-[#094B68] group-hover:via-[#0D6487] group-hover:to-[#B87819] transition-all duration-300">
+                Digikosh
               </span>
             </div>
             <p className="text-foreground/70 mb-6 max-w-md leading-relaxed">
-              Fund your team sustainably with yield-powered salaries. Simple, safe, and transparent.
+              The Sacred Finance Platform for Temples & Religious Trusts. Preserve corpus. Automate expenses. Build self-sustainability.
             </p>
             <Button 
               onClick={onGetStarted} 
-              className="bg-gradient-to-r from-violet-600 via-purple-600 to-fuchsia-600 hover:from-violet-500 hover:via-purple-500 hover:to-fuchsia-500 shadow-lg shadow-violet-500/25 hover:shadow-xl hover:shadow-violet-500/30 transition-all text-white group animate-pulse-glow"
+              className="bg-gradient-to-r from-[#0B5A7C] via-[#1077A3] to-[#C8861D] hover:from-[#094B68] hover:via-[#0D6487] hover:to-[#B87819] shadow-lg shadow-[#0B5A7C]/25 hover:shadow-xl hover:shadow-[#0B5A7C]/30 hover:scale-105 active:scale-95 transition-all duration-300 text-white group animate-pulse-glow"
             >
               Get Started
               <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
@@ -43,22 +43,22 @@ export function LandingFooter({ onGetStarted }: LandingFooterProps) {
             <ul className="space-y-3">
               <li>
                 <a href="#features" className="text-foreground/70 hover:text-primary transition-colors">
-                  Features
+                  Sacred Features
                 </a>
               </li>
               <li>
                 <a href="#how-it-works" className="text-foreground/70 hover:text-primary transition-colors">
-                  How It Works
+                  Divine Process
                 </a>
               </li>
               <li>
                 <Link href="/dashboard" className="text-foreground/70 hover:text-primary transition-colors">
-                  Dashboard
+                  Temple Dashboard
                 </Link>
               </li>
               <li>
                 <a href="#impact" className="text-foreground/70 hover:text-primary transition-colors">
-                  Impact
+                  Temple Impact
                 </a>
               </li>
             </ul>
@@ -117,7 +117,7 @@ export function LandingFooter({ onGetStarted }: LandingFooterProps) {
 
         <div className="pt-8 border-t border-border/30 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-sm text-foreground/60">
-            © {new Date().getFullYear()} DigiKosh. All rights reserved.
+            © {new Date().getFullYear()} Digikosh. The Sacred Finance Platform for Temples & Religious Trusts.
           </p>
           <div className="flex items-center gap-4">
             <a 

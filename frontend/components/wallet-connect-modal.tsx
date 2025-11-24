@@ -4,7 +4,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
 import { useConnect, useDisconnect, useAccount } from "wagmi"
-import { useEffect } from "react"
+import { useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 
 interface WalletConnectModalProps {
@@ -18,14 +18,24 @@ export function WalletConnectModal({ open, onOpenChange }: WalletConnectModalPro
   const { address, isConnected } = useAccount()
   const { toast } = useToast()
   const router = useRouter()
+  const wasConnectingRef = useRef(false)
 
+  // Track when user initiates connection through modal
   useEffect(() => {
-    if (isConnected && address) {
+    if (open) {
+      wasConnectingRef.current = true
+    }
+  }, [open])
+
+  // Only redirect if connection happened through this modal
+  useEffect(() => {
+    if (isConnected && address && wasConnectingRef.current) {
       toast({
         title: "Connected",
         description: `Wallet connected: ${address.slice(0, 6)}...${address.slice(-4)}`,
       })
       onOpenChange(false)
+      wasConnectingRef.current = false
       router.push("/dashboard")
     }
   }, [isConnected, address, toast, onOpenChange, router])
@@ -47,7 +57,7 @@ export function WalletConnectModal({ open, onOpenChange }: WalletConnectModalPro
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Connect Wallet</DialogTitle>
-          <DialogDescription>Choose a wallet to connect to DigiKosh</DialogDescription>
+          <DialogDescription>Choose a wallet to connect to Digikosh</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           {connectors.map((connector) => (

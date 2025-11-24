@@ -1,6 +1,7 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
+import Image from "next/image"
 
 interface DigiKoshLogoProps {
   size?: "sm" | "md" | "lg"
@@ -11,9 +12,15 @@ export function DigiKoshLogo({ size = "md", animated = true }: DigiKoshLogoProps
   const [isHovered, setIsHovered] = useState(false)
   
   const sizeClasses = {
-    sm: "w-8 h-8",
-    md: "w-10 h-10",
-    lg: "w-16 h-16"
+    sm: "w-10 h-10",
+    md: "w-12 h-12",
+    lg: "w-20 h-20"
+  }
+
+  const imageSizes = {
+    sm: 40,
+    md: 48,
+    lg: 80
   }
 
   return (
@@ -22,44 +29,30 @@ export function DigiKoshLogo({ size = "md", animated = true }: DigiKoshLogoProps
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      {/* Animated background glow */}
-      <div className={`absolute inset-0 bg-gradient-to-br from-violet-600 via-purple-600 to-fuchsia-600 rounded-xl blur-md opacity-60 ${animated ? 'animate-pulse' : ''}`} />
+      {/* Animated background glow with temple colors */}
+      <div className={`absolute inset-0 bg-gradient-to-br from-[#0B5A7C] via-[#1077A3] to-[#C8861D] rounded-full blur-md opacity-50 ${animated ? 'animate-pulse' : ''}`} />
       
       {/* Main logo container */}
-      <div className={`relative w-full h-full bg-gradient-to-br from-violet-600 via-purple-600 to-fuchsia-600 rounded-xl flex items-center justify-center shadow-xl ${animated && isHovered ? 'animate-spin-slow scale-110' : ''} transition-all duration-300`}>
-        {/* Inner glow */}
-        <div className="absolute inset-0 bg-gradient-to-tr from-white/30 to-transparent rounded-xl" />
-        
-        {/* Logo symbol - stylized "DK" */}
-        <div className="relative z-10 flex items-center justify-center">
-          <div className="relative">
-            {/* D */}
-            <div className="absolute -left-2 top-0 w-3 h-5 border-2 border-white rounded-l-full border-r-0" />
-            {/* K */}
-            <div className="relative">
-              <div className="w-0.5 h-5 bg-white" />
-              <div className="absolute top-0 right-0 w-2 h-2 border-t-2 border-r-2 border-white rounded-tr" />
-              <div className="absolute bottom-0 right-0 w-2 h-2 border-b-2 border-r-2 border-white rounded-br" />
-            </div>
-          </div>
-        </div>
+      <div className={`relative w-full h-full rounded-full flex items-center justify-center shadow-xl overflow-hidden ${animated && isHovered ? 'scale-110' : ''} transition-all duration-300 bg-white`}>
+        {/* Temple logo image */}
+        <Image 
+          src="/logo.jpg" 
+          alt="DigiKosh Temple Logo"
+          width={imageSizes[size]}
+          height={imageSizes[size]}
+          className="object-contain p-1"
+          priority
+        />
         
         {/* Shimmer effect */}
         {animated && (
-          <div className="absolute inset-0 overflow-hidden rounded-xl">
-            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/40 to-transparent -translate-x-full animate-shimmer" />
+          <div className="absolute inset-0 overflow-hidden rounded-full">
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/60 to-transparent -translate-x-full animate-shimmer" />
           </div>
         )}
       </div>
       
       <style jsx>{`
-        @keyframes spin-slow {
-          from { transform: rotate(0deg) scale(1); }
-          to { transform: rotate(360deg) scale(1.1); }
-        }
-        .animate-spin-slow {
-          animation: spin-slow 3s linear infinite;
-        }
         @keyframes shimmer {
           0% { transform: translateX(-100%) translateY(0); }
           100% { transform: translateX(200%) translateY(0); }
