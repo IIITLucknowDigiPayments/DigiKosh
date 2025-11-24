@@ -10,7 +10,7 @@ const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "OctantVault - Yield-Powered Salaries for Public Goods",
+  title: "DigiKosh - Yield-Powered Salaries for Public Goods",
   description: "Sustainable funding for public goods using Spark's curated yield. Deploy ERC-4626 vaults that stream yield to your team.",
   generator: "v0.app",
   icons: {

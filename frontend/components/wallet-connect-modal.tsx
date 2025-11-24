@@ -47,7 +47,7 @@ export function WalletConnectModal({ open, onOpenChange }: WalletConnectModalPro
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Connect Wallet</DialogTitle>
-          <DialogDescription>Choose a wallet to connect to OctantVault</DialogDescription>
+          <DialogDescription>Choose a wallet to connect to DigiKosh</DialogDescription>
         </DialogHeader>
         <div className="space-y-3">
           {connectors.map((connector) => (

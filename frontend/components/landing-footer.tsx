@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { ArrowRight, Github, Twitter, Mail, ExternalLink } from "lucide-react"
 import Link from "next/link"
+import { DigiKoshLogo } from "@/components/digikosh-logo"
 
 interface LandingFooterProps {
   onGetStarted: () => void
@@ -17,12 +18,10 @@ export function LandingFooter({ onGetStarted }: LandingFooterProps) {
       <div className="relative max-w-7xl mx-auto">
         <div className="grid md:grid-cols-4 gap-12 mb-12">
           <div className="md:col-span-2">
-            <div className="flex items-center gap-2 mb-4">
-              <div className="w-10 h-10 bg-gradient-to-br from-primary to-purple-600 rounded-lg flex items-center justify-center shadow-lg">
-                <span className="text-white font-bold text-xl">◆</span>
-              </div>
-              <span className="font-bold text-2xl bg-gradient-to-r from-foreground via-primary to-purple-500 bg-clip-text text-transparent">
-                OctantVault
+            <div className="flex items-center gap-3 mb-4 group cursor-pointer">
+              <DigiKoshLogo size="md" animated={true} />
+              <span className="font-bold text-2xl bg-gradient-to-r from-violet-600 via-purple-600 to-fuchsia-600 bg-clip-text text-transparent group-hover:from-violet-500 group-hover:via-purple-500 group-hover:to-fuchsia-500 transition-all duration-300">
+                DigiKosh
               </span>
             </div>
             <p className="text-foreground/70 mb-6 max-w-md leading-relaxed">
@@ -30,10 +29,10 @@ export function LandingFooter({ onGetStarted }: LandingFooterProps) {
             </p>
             <Button 
               onClick={onGetStarted} 
-              className="bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90 shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all text-white"
+              className="bg-gradient-to-r from-violet-600 via-purple-600 to-fuchsia-600 hover:from-violet-500 hover:via-purple-500 hover:to-fuchsia-500 shadow-lg shadow-violet-500/25 hover:shadow-xl hover:shadow-violet-500/30 transition-all text-white group animate-pulse-glow"
             >
               Get Started
-              <ArrowRight className="ml-2 w-4 h-4" />
+              <ArrowRight className="ml-2 w-4 h-4 group-hover:translate-x-1 transition-transform" />
             </Button>
           </div>
 
@@ -105,7 +104,7 @@ export function LandingFooter({ onGetStarted }: LandingFooterProps) {
               </li>
               <li>
                 <a 
-                  href="mailto:support@octantvault.com" 
+                  href="mailto:support@digikosh.com" 
                   className="text-foreground/70 hover:text-primary transition-colors flex items-center gap-1"
                 >
                   Support
@@ -118,7 +117,7 @@ export function LandingFooter({ onGetStarted }: LandingFooterProps) {
 
         <div className="pt-8 border-t border-border/30 flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="text-sm text-foreground/60">
-            © {new Date().getFullYear()} OctantVault. All rights reserved.
+            © {new Date().getFullYear()} DigiKosh. All rights reserved.
           </p>
           <div className="flex items-center gap-4">
             <a 
@@ -140,7 +139,7 @@ export function LandingFooter({ onGetStarted }: LandingFooterProps) {
               <Twitter className="w-5 h-5 text-foreground/70 hover:text-primary transition-colors" />
             </a>
             <a 
-              href="mailto:support@octantvault.com" 
+              href="mailto:support@digikosh.com" 
               className="w-10 h-10 rounded-lg bg-card/50 backdrop-blur-sm border border-border/50 flex items-center justify-center hover:bg-primary/10 hover:border-primary/30 transition-colors"
               aria-label="Email"
             >

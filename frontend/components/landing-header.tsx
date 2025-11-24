@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { useAccount, useDisconnect } from "wagmi"
 import { useRouter } from "next/navigation"
 import { Wallet, LogOut } from "lucide-react"
+import { DigiKoshLogo } from "@/components/digikosh-logo"
 
 interface LandingHeaderProps {
   onConnectWallet: () => void
@@ -23,14 +24,12 @@ export function LandingHeader({ onConnectWallet }: LandingHeaderProps) {
   }
 
   return (
-    <header className="sticky top-0 z-50 bg-background/20 dark:bg-slate-900/20 backdrop-blur-2xl border-b border-white/10 dark:border-white/5 shadow-lg shadow-black/5">
+    <header className="sticky top-0 z-50 bg-background/80 dark:bg-slate-900/80 backdrop-blur-2xl border-b border-violet-500/20 dark:border-violet-500/10 shadow-lg shadow-violet-500/10">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-gradient-to-br from-primary to-primary/70 rounded-lg flex items-center justify-center shadow-lg">
-            <span className="text-white font-bold text-lg">◆</span>
-          </div>
-          <span className="font-bold text-xl hidden sm:inline bg-gradient-to-r from-foreground to-foreground/70 bg-clip-text text-transparent">
-            OctantVault
+        <div className="flex items-center gap-3 group cursor-pointer" onClick={() => router.push("/")}>
+          <DigiKoshLogo size="sm" animated={true} />
+          <span className="font-bold text-xl hidden sm:inline bg-gradient-to-r from-violet-600 via-purple-600 to-fuchsia-600 bg-clip-text text-transparent group-hover:from-violet-500 group-hover:via-purple-500 group-hover:to-fuchsia-500 transition-all duration-300">
+            DigiKosh
           </span>
         </div>
         <nav className="hidden md:flex items-center gap-2">
@@ -39,21 +38,21 @@ export function LandingHeader({ onConnectWallet }: LandingHeaderProps) {
             className="px-4 py-2 rounded-lg text-sm font-medium text-foreground/70 hover:text-foreground hover:bg-white/5 dark:hover:bg-white/5 transition-all duration-200 relative group"
           >
             Features
-            <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-gradient-to-r from-primary to-purple-500 group-hover:w-full transition-all duration-200" />
+            <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-gradient-to-r from-violet-500 via-purple-500 to-fuchsia-500 group-hover:w-full transition-all duration-300" />
           </a>
           <a 
             href="#how-it-works" 
             className="px-4 py-2 rounded-lg text-sm font-medium text-foreground/70 hover:text-foreground hover:bg-white/5 dark:hover:bg-white/5 transition-all duration-200 relative group"
           >
             How it Works
-            <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-gradient-to-r from-primary to-purple-500 group-hover:w-full transition-all duration-200" />
+            <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-gradient-to-r from-violet-500 via-purple-500 to-fuchsia-500 group-hover:w-full transition-all duration-300" />
           </a>
           <a 
             href="#impact" 
             className="px-4 py-2 rounded-lg text-sm font-medium text-foreground/70 hover:text-foreground hover:bg-white/5 dark:hover:bg-white/5 transition-all duration-200 relative group"
           >
             Impact
-            <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-gradient-to-r from-primary to-purple-500 group-hover:w-full transition-all duration-200" />
+            <span className="absolute bottom-0 left-0 w-0 h-0.5 bg-gradient-to-r from-violet-500 via-purple-500 to-fuchsia-500 group-hover:w-full transition-all duration-300" />
           </a>
         </nav>
         {isConnected && address ? (
@@ -65,9 +64,9 @@ export function LandingHeader({ onConnectWallet }: LandingHeaderProps) {
             >
               Dashboard
             </Button>
-            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-primary/10 to-purple-500/10 border border-primary/20 backdrop-blur-sm hover:from-primary/15 hover:to-purple-500/15 transition-all">
-              <Wallet className="w-4 h-4 text-primary" />
-              <span className="text-sm font-medium text-primary">
+            <div className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-violet-500/10 to-purple-500/10 border border-violet-500/20 backdrop-blur-sm hover:from-violet-500/15 hover:to-purple-500/15 transition-all animate-pulse-glow">
+              <Wallet className="w-4 h-4 text-violet-500" />
+              <span className="text-sm font-medium text-violet-600 dark:text-violet-400">
                 {address.slice(0, 6)}...{address.slice(-4)}
               </span>
             </div>
@@ -83,7 +82,7 @@ export function LandingHeader({ onConnectWallet }: LandingHeaderProps) {
         ) : (
           <Button 
             onClick={onConnectWallet} 
-            className="bg-gradient-to-r from-primary to-purple-600 hover:from-primary/90 hover:to-purple-600/90 shadow-lg shadow-primary/25 hover:shadow-xl hover:shadow-primary/30 transition-all text-white"
+            className="bg-gradient-to-r from-violet-600 via-purple-600 to-fuchsia-600 hover:from-violet-500 hover:via-purple-500 hover:to-fuchsia-500 shadow-lg shadow-violet-500/30 hover:shadow-xl hover:shadow-violet-500/40 transition-all text-white font-semibold animate-pulse-glow"
           >
             Connect Wallet
           </Button>
