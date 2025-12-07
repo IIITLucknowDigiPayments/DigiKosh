@@ -135,6 +135,57 @@ export class VaultController {
       res.status(500).json({ success: false, error: error.message });
     }
   }
+
+  async createVault(req: Request, res: Response) {
+    try {
+      const {
+        address,
+        name,
+        description,
+        asset,
+        deployer,
+        totalAssets,
+        totalSupply,
+      } = req.body;
+
+      if (!address || !address.match(/^0x[a-fA-F0-9]{40}$/)) {
+        return res
+          .status(400)
+          .json({ success: false, error: "Invalid or missing vault address" });
+      }
+
+      if (!name || !description) {
+        return res
+          .status(400)
+          .json({ success: false, error: "Name and description are required" });
+      }
+
+      const existing = await Vault.findOne({ address });
+      if (existing) {
+        return res
+          .status(200)
+          .json({
+            success: true,
+            data: existing,
+            message: "Vault already exists",
+          });
+      }
+
+      const vault = await Vault.create({
+        address,
+        name,
+        description,
+        asset: asset || "0x0000000000000000000000000000000000000000",
+        deployer: deployer || "0x0000000000000000000000000000000000000000",
+        totalAssets: totalAssets || "0",
+        totalSupply: totalSupply || "0",
+      });
+
+      return res.status(201).json({ success: true, data: vault });
+    } catch (error: any) {
+      return res.status(500).json({ success: false, error: error.message });
+    }
+  }
 }
 
 export const vaultController = new VaultController();
