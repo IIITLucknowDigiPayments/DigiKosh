@@ -15,8 +15,14 @@ import { useEffect, useState } from "react";
 
 export function DashboardContent() {
   const { address } = useAccount();
-  const { totalAssets, vaultCount, contributorCount, avgAPY, isLoading } =
-    useDashboardStats();
+  const {
+    totalAssets,
+    vaultCount,
+    contributorCount,
+    avgAPY,
+    yieldEarned,
+    isLoading,
+  } = useDashboardStats();
   const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
@@ -81,7 +87,13 @@ export function DashboardContent() {
                 <div className="text-3xl font-bold animate-pulse">...</div>
               ) : (
                 <>
-                  <div className="text-3xl font-bold">$0</div>
+                  <div className="text-3xl font-bold">
+                    {yieldEarned
+                      ? `$${Number(yieldEarned).toLocaleString(undefined, {
+                          maximumFractionDigits: 2,
+                        })}`
+                      : "$0"}
+                  </div>
                   <p className="text-xs text-foreground/50 mt-1">
                     From Spark's curated yield
                   </p>

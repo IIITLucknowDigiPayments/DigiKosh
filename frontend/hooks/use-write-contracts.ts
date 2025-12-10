@@ -19,6 +19,7 @@ import {
 import { parseEther, parseUnits, formatEther, Address } from "viem";
 import { getAssetAddress, getAssetDecimals } from "@/lib/assets";
 import { useToast } from "@/hooks/use-toast";
+import { apiClient } from "@/lib/api";
 import { useQueryClient } from "@tanstack/react-query";
 import { CONTRACTS } from "@/lib/contracts";
 
@@ -38,6 +39,13 @@ export function useCreateVault() {
   const { address: factoryAddress, abi } = useVaultFactory();
   const { address: sparkFactoryAddress, abi: sparkAbi } =
     useSparkVaultFactory();
+  const [vaultData, setVaultData] = useState<{
+    pseudoAddress: string;
+    name: string;
+    description: string;
+    asset: string;
+    assetName: string;
+  } | null>(null);
 
   const createVault = async (
     assetName: string,
@@ -54,102 +62,80 @@ export function useCreateVault() {
       return;
     }
 
-    // Check if on correct network
-    if (chainId !== CONTRACTS.CHAIN_ID) {
-      toast({
-        title: "Wrong Network",
-        description: `Please switch to Base Sepolia (Chain ID: ${CONTRACTS.CHAIN_ID}). You are currently on Chain ID: ${chainId}`,
-        variant: "destructive",
-      });
-
-      // Try to switch automatically
-      if (switchChain) {
-        try {
-          await switchChain({ chainId: CONTRACTS.CHAIN_ID });
-          toast({
-            title: "Switching Network",
-            description: "Please approve the network switch in your wallet",
-          });
-        } catch (error: any) {
-          toast({
-            title: "Network Switch Failed",
-            description:
-              error.message ||
-              "Please manually switch to Base Sepolia in your wallet",
-            variant: "destructive",
-          });
-        }
-      }
-      return;
-    }
-
     const assetAddress = getAssetAddress(assetName);
 
+    // Generate a pseudo address for demo (valid hex) to allow selection in UI
+    const pseudoAddress =
+      "0x" +
+      Array.from({ length: 40 })
+        .map(() => Math.floor(Math.random() * 16).toString(16))
+        .join("");
+
     try {
+      console.log("[Vault] Creating vault - saving to backend immediately", {
+        name,
+        description,
+        pseudoAddress,
+      });
+
+      // Save to backend immediately (don't wait for blockchain)
+      const response = await apiClient.createVault({
+        address: pseudoAddress,
+        name: name,
+        description: description,
+        asset: assetAddress,
+        deployer: address!,
+        totalAssets: "0",
+        totalSupply: "0",
+      });
+
+      console.log("[Vault] Backend save successful", response);
+
+      // Invalidate and refetch vaults query to show new vault immediately
+      queryClient.invalidateQueries({ queryKey: ["vaults"] });
+      queryClient.refetchQueries({ queryKey: ["vaults"] });
+
+      console.log("[Vault] Query refetched - vault should appear now");
+
+      toast({
+        title: "Success",
+        description: "Vault created and visible in the list!",
+      });
+
+      // Now initiate blockchain transaction (don't wait for it)
+      // Check if on correct network first
+      if (chainId !== CONTRACTS.CHAIN_ID) {
+        console.log("[Vault] Wrong network - skipping blockchain transaction");
+        console.log(
+          `[Vault] Please switch to Base Sepolia (Chain ID: ${CONTRACTS.CHAIN_ID})`
+        );
+        toast({
+          title: "Note",
+          description: `Vault created in backend. Optionally switch to Base Sepolia and confirm blockchain transaction.`,
+        });
+        return;
+      }
+
+      console.log("[Vault] Initiating blockchain transaction (in background)");
+
+      // Initiate blockchain transaction in the background (don't wait)
       writeContract({
         address: (useSpark ? sparkFactoryAddress : factoryAddress) as Address,
         abi: (useSpark ? sparkAbi : abi) as any,
         functionName: "createVault",
         args: [assetAddress, name, description],
       });
-      // Also save a backend record for demo purposes so the vault shows up in the UI
-      try {
-        const apiBase =
-          process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
-        // Generate a pseudo address for demo (valid hex) to allow selection in UI
-        const pseudoAddress =
-          "0x" +
-          Array.from({ length: 40 })
-            .map(() => Math.floor(Math.random() * 16).toString(16))
-            .join("");
-        await fetch(`${apiBase}/vaults`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            address: pseudoAddress,
-            name,
-            description,
-            asset: assetAddress,
-            deployer: address,
-            totalAssets: "0",
-            totalSupply: "0",
-          }),
-        });
-        // Invalidate vaults to show new backend-created vault immediately
-        queryClient.invalidateQueries({ queryKey: ["vaults"] });
-      } catch (err) {
-        // Silently ignore backend save errors — blockchain path remains primary
-        console.error("Failed to save vault to backend demo API", err);
-      }
+
+      console.log("[Vault] Blockchain transaction initiated in background");
     } catch (error: any) {
+      console.error("[Vault] Error creating vault:", error);
       toast({
         title: "Error",
         description: error.message || "Failed to create vault",
         variant: "destructive",
       });
-      throw error;
     }
   };
-
-  // Refresh vaults after successful creation
-  useEffect(() => {
-    if (isSuccess && hash) {
-      // Wait a bit for the transaction to be indexed, then invalidate queries
-      // We need to wait longer for Base Sepolia to index the transaction
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ["vaults"] });
-        queryClient.invalidateQueries({ queryKey: ["vaultInfo"] });
-        queryClient.invalidateQueries({ queryKey: ["readContract"] });
-        // Force a refetch of all vault-related queries
-        queryClient.refetchQueries({ queryKey: ["vaults"] });
-      }, 3000); // Wait 3 seconds for indexing on Base Sepolia
-
-      toast({
-        title: "Success",
-        description: "Vault created successfully! Refreshing vault list...",
-      });
-    }
-  }, [isSuccess, hash, queryClient, toast]);
 
   return {
     createVault,
@@ -178,6 +164,13 @@ export function useAddContributor() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { address: registryAddress, abi } = useContributorRegistry();
+  const [contributorData, setContributorData] = useState<{
+    vaultAddress: Address;
+    wallet: Address;
+    name: string;
+    role: string;
+    monthlyAllocation: string;
+  } | null>(null);
 
   useEffect(() => {
     if (writeError) {
@@ -242,8 +235,35 @@ export function useAddContributor() {
     const allocation = parseEther(monthlyAllocation);
 
     try {
+      // STEP 1: Save to backend immediately (don't wait for blockchain)
+      console.log("[addContributor] Saving to backend...", {
+        vaultAddress,
+        wallet,
+        name,
+        role,
+        monthlyAllocation,
+      });
+
+      await apiClient.createContributor({
+        vault: String(vaultAddress),
+        wallet: String(wallet),
+        name,
+        role,
+        monthlyAllocation,
+      });
+
+      toast({
+        title: "Success",
+        description:
+          "Contributor saved! Waiting for blockchain confirmation...",
+      });
+
+      // DO NOT invalidate queries here - wait for blockchain confirmation
+      // This ensures the contributor card won't appear until MetaMask confirms
+
+      // STEP 2: Initiate blockchain transaction in background (don't wait)
       console.log(
-        "before write contract",
+        "[addContributor] Initiating blockchain transaction...",
         registryAddress,
         vaultAddress,
         wallet,
@@ -251,6 +271,17 @@ export function useAddContributor() {
         role,
         allocation
       );
+
+      // Store data for blockchain transaction
+      setContributorData({
+        vaultAddress,
+        wallet,
+        name,
+        role,
+        monthlyAllocation,
+      });
+
+      // Initiate blockchain write without waiting for confirmation
       writeContract({
         address: registryAddress as Address,
         abi,
@@ -258,56 +289,53 @@ export function useAddContributor() {
         args: [vaultAddress, wallet, name, role, allocation],
       });
 
-      const apiBase = process.env.NEXT_PUBLIC_API_URL || "";
-      const res = await fetch(`http://localhost:3001/api/v1/contributors`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          vault: vaultAddress,
-          wallet,
-          name,
-          role,
-          monthlyAllocation,
-        }),
-      });
-
-      console.log("after write contract", res);
+      // Don't throw error - blockchain transaction is now in background
+      // User can continue using the app
     } catch (error: any) {
-      console.log("got error- ", error);
+      console.error("[addContributor] Backend save failed", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to add contributor",
+        description:
+          error.message ||
+          "Failed to add contributor to backend. Please try again.",
         variant: "destructive",
       });
       throw error;
     }
   };
 
+  // Invalidate queries only after blockchain confirmation (with 3 sec delay)
   useEffect(() => {
-    if (isSuccess && hash) {
-      setTimeout(() => {
-        queryClient.invalidateQueries({
-          queryKey: ["readContract"],
-          exact: false,
-        });
-        queryClient.refetchQueries({
-          queryKey: ["readContract"],
-          exact: false,
-        });
-        queryClient.invalidateQueries({ queryKey: ["contributors"] });
-        queryClient.invalidateQueries({
-          queryKey: ["contributors"],
-          exact: false,
-        });
-      }, 2000);
-
+    if (isSuccess && hash && contributorData) {
       toast({
         title: "Success",
         description:
-          "Contributor added successfully! Refreshing contributor list...",
+          "Blockchain transaction confirmed! Refreshing contributors...",
       });
+
+      // Wait 3 seconds then invalidate and refetch queries to show contributor card
+      const timer = setTimeout(async () => {
+        // Invalidate queries to force refetch
+        await queryClient.refetchQueries({
+          queryKey: ["readContract"],
+          exact: false,
+        });
+        await queryClient.refetchQueries({
+          queryKey: ["contributors"],
+          exact: false,
+        });
+
+        console.log(
+          "[addContributor] Queries refetched after blockchain confirmation"
+        );
+
+        // Clear contributor data
+        setContributorData(null);
+      }, 3000);
+
+      return () => clearTimeout(timer);
     }
-  }, [isSuccess, hash, queryClient, toast]);
+  }, [isSuccess, hash, contributorData, queryClient, toast]);
 
   return {
     addContributor,
@@ -720,17 +748,95 @@ export function useVote() {
       return;
     }
 
-    // Calculate cost (quadratic: n²)
-    const cost = BigInt(voteCount * voteCount);
+    // Calculate cost (quadratic: n²).
+    // Use zero cost for now (optimistic backend-first flow) so votes can be recorded
+    // even if chain payments are unreliable in dev.
+    const cost = 0n;
 
     try {
+      // Initiate blockchain transaction in background (fire-and-forget)
       writeContract({
         address: votingAddress as Address,
         abi,
         functionName: "vote",
         args: [votingId, BigInt(voteCount), isFor],
-        value: cost, // Pay in native token
+        value: cost,
       });
+
+      // Optimistic backend update: increment vote counts immediately so UI reflects action
+      try {
+        if (isFor) {
+          await apiClient.incrementVote(String(votingId), voteCount, 0);
+        } else {
+          await apiClient.incrementVote(String(votingId), 0, voteCount);
+        }
+
+        // Update React Query cache for active/past votings so UI reflects change immediately
+        try {
+          // Update active votings cache if present
+          queryClient.setQueryData(["votings", "active"], (oldData: any) => {
+            if (!oldData || !oldData.success || !Array.isArray(oldData.data))
+              return oldData;
+            const updated = oldData.data.map((v: any) => {
+              if (String(v.votingId) === String(votingId)) {
+                return {
+                  ...v,
+                  votesFor: v.votesFor + (isFor ? voteCount : 0),
+                  votesAgainst: v.votesAgainst + (isFor ? 0 : voteCount),
+                  totalVotes: v.totalVotes + voteCount,
+                };
+              }
+              return v;
+            });
+            return { ...oldData, data: updated };
+          });
+
+          // Update past votings cache as well
+          queryClient.setQueryData(["votings", "past"], (oldData: any) => {
+            if (!oldData || !oldData.success || !Array.isArray(oldData.data))
+              return oldData;
+            const updated = oldData.data.map((v: any) => {
+              if (String(v.votingId) === String(votingId)) {
+                return {
+                  ...v,
+                  votesFor: v.votesFor + (isFor ? voteCount : 0),
+                  votesAgainst: v.votesAgainst + (isFor ? 0 : voteCount),
+                  totalVotes: v.totalVotes + voteCount,
+                };
+              }
+              return v;
+            });
+            return { ...oldData, data: updated };
+          });
+
+          // As a fallback, invalidate/refetch the generic votings queries and contract reads
+          await Promise.all([
+            queryClient.invalidateQueries({
+              queryKey: ["votings", "active"],
+              exact: false,
+            }),
+            queryClient.invalidateQueries({
+              queryKey: ["votings", "past"],
+              exact: false,
+            }),
+            queryClient.invalidateQueries({
+              queryKey: ["votings"],
+              exact: false,
+            }),
+            queryClient.invalidateQueries({
+              queryKey: ["readContract"],
+              exact: false,
+            }),
+          ]);
+        } catch (cacheErr) {
+          console.error(
+            "[vote] Failed to update cache/refresh votings:",
+            cacheErr
+          );
+        }
+      } catch (incErr) {
+        console.error("[vote] Failed to increment backend counts:", incErr);
+      }
     } catch (error: any) {
       toast({
         title: "Error",
@@ -785,6 +891,14 @@ export function useCreateVoting() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { address: votingAddress, abi } = useQuadraticVoting();
+  const [votingData, setVotingData] = useState<{
+    vaultAddress: Address;
+    nominee: Address;
+    nomineeName: string;
+    role: string;
+    description: string;
+    duration: number;
+  } | null>(null);
 
   const createVoting = async (
     vaultAddress: Address,
@@ -804,8 +918,57 @@ export function useCreateVoting() {
     }
 
     try {
-      // Await the writeContract promise so any errors are caught here
-      await writeContract({
+      // STEP 1: Save voting to backend immediately (don't wait for blockchain)
+      console.log("[createVoting] Saving to backend...", {
+        vaultAddress,
+        nominee,
+        nomineeName,
+        description,
+        duration,
+      });
+
+      const now = Date.now();
+      const startTime = now;
+      const endTime = now + duration * 1000;
+
+      await apiClient.createVoting({
+        vault: String(vaultAddress),
+        nominee: String(nominee),
+        nomineeName,
+        description,
+        startTime,
+        endTime,
+      });
+
+      toast({
+        title: "Success",
+        description:
+          "Voting created successfully! Waiting for blockchain confirmation...",
+      });
+
+      // DO NOT invalidate queries here - wait for blockchain confirmation
+      // This ensures the voting card won't appear until MetaMask confirms
+
+      // STEP 2: Initiate blockchain transaction in background (don't wait)
+      console.log(
+        "[createVoting] Initiating blockchain transaction...",
+        votingAddress,
+        vaultAddress,
+        nominee
+      );
+
+      // Store voting data for blockchain transaction
+      setVotingData({
+        vaultAddress,
+        nominee,
+        nomineeName,
+        role,
+        description,
+        duration,
+      });
+
+      // Initiate blockchain write without waiting for confirmation
+      writeContract({
         address: votingAddress as Address,
         abi,
         functionName: "createVoting",
@@ -818,39 +981,69 @@ export function useCreateVoting() {
           BigInt(duration),
         ],
       });
+
+      // Don't throw error - blockchain transaction is now in background
+      // User can continue using the app
     } catch (error: any) {
+      console.error("[createVoting] Backend save failed", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to create voting",
+        description:
+          error.message || "Failed to create voting. Please try again.",
         variant: "destructive",
       });
       throw error;
     }
   };
 
+  // Refetch immediately after backend save (to show voting card via backend data)
   useEffect(() => {
-    if (isSuccess && hash) {
-      setTimeout(() => {
-        queryClient.invalidateQueries({
-          queryKey: ["votings"],
-          exact: false,
+    if (votingData) {
+      // Immediately refetch to show voting card from backend
+      const timer = setTimeout(async () => {
+        await queryClient.refetchQueries({
+          queryKey: ["votings", "active"],
         });
-        queryClient.refetchQueries({
-          queryKey: ["votings"],
-          exact: false,
+        await queryClient.refetchQueries({
+          queryKey: ["votings", "past"],
         });
-        queryClient.invalidateQueries({
-          queryKey: ["readContract"],
-          exact: false,
-        });
-      }, 2000);
 
+        console.log(
+          "[createVoting] Backend votings refetched - card should appear now"
+        );
+      }, 500); // Small delay to ensure backend has processed
+
+      return () => clearTimeout(timer);
+    }
+  }, [votingData, queryClient]);
+
+  // Refetch again after blockchain confirmation (to ensure consistency)
+  useEffect(() => {
+    if (isSuccess && hash && votingData) {
       toast({
         title: "Success",
-        description: "Voting created successfully! Refreshing voting list...",
+        description: "Voting confirmed on blockchain!",
       });
+
+      // Wait a bit then refetch again to sync with blockchain state
+      const timer = setTimeout(async () => {
+        // Refetch queries to get latest blockchain state
+        await queryClient.refetchQueries({
+          queryKey: ["votings"],
+          exact: false,
+        });
+
+        console.log(
+          "[createVoting] Queries refetched after blockchain confirmation"
+        );
+
+        // Clear voting data
+        setVotingData(null);
+      }, 2000);
+
+      return () => clearTimeout(timer);
     }
-  }, [isSuccess, hash, queryClient, toast]);
+  }, [isSuccess, hash, votingData, queryClient, toast]);
 
   return {
     createVoting,

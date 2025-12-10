@@ -58,12 +58,21 @@ export function CreateVaultModal({
     }
 
     try {
+      console.log("[Modal] Submitting vault form with data:", {
+        name: formData.name,
+        description: formData.description,
+        asset: formData.asset,
+      });
+
+      // Call createVault and wait for backend save
       await createVault(
         formData.asset,
         formData.name,
         formData.description,
         formData.strategy === "spark"
       );
+
+      // Close modal after vault is saved to backend
       onOpenChange(false);
       setFormData({
         name: "",
@@ -71,10 +80,15 @@ export function CreateVaultModal({
         asset: "USDC",
         strategy: "spark",
       });
-      // Refresh the page to show new vault
-      router.refresh();
+
+      console.log("[Modal] Vault created and modal closed");
     } catch (error) {
-      // Error is handled in the hook
+      console.error("[Modal] Error creating vault:", error);
+      toast({
+        title: "Error",
+        description: "Failed to create vault",
+        variant: "destructive",
+      });
     }
   };
 

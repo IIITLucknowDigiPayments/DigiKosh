@@ -22,6 +22,15 @@ export default function VaultsPage() {
     setMounted(true);
   }, []);
 
+  // Log vaults for debugging
+  useEffect(() => {
+    console.log("[VaultsPage] Vaults updated:", {
+      count: vaults?.length || 0,
+      vaults: vaults,
+      isLoading,
+    });
+  }, [vaults, isLoading]);
+
   const filteredVaults = useMemo(() => {
     if (!vaults) return [];
     return vaults.filter((vault) => {

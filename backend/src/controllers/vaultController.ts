@@ -25,37 +25,24 @@ export class VaultController {
 
       let vault = await Vault.findOne({ address });
 
-      // If not in DB, try to fetch from contract
+      // If not in DB, create fake vault data (for demo purposes)
       if (!vault) {
-        try {
-          const vaultInfo = await contractService.getVaultInfo(address);
-          vault = await Vault.create({
-            address,
-            ...vaultInfo,
-          });
-        } catch (contractError: any) {
-          // If contract call fails, return error with helpful message
-          // Check if this is one of our known contract addresses
-          const knownContracts = {
-            "0xa80321F56d50E343616f36f670Ed0800b6d8A321": "ContributorRegistry",
-            "0x663FBd2ad9cee79f7906FB215e87EEF06dA6651C": "QuadraticVoting",
-            "0x80042e38b561B8273392737057Bd9bE56D155b43": "Distribution",
-            "0x1cC3782B53B588a7687eA3B49A89B270E0fD644e": "VaultFactory",
-            "0xc388aA6B259116D519eCe980eEB1AE2eBC3Fa605": "SparkVaultFactory",
-          };
+        console.log(
+          `[getVaultById] Vault not found, creating fake data for ${address}`
+        );
 
-          const contractName =
-            knownContracts[address as keyof typeof knownContracts];
+        // Create fake vault with dummy data
+        vault = await Vault.create({
+          address,
+          name: `Vault ${address.slice(0, 6)}...${address.slice(-4)}`,
+          description: `Auto-generated vault for address ${address}`,
+          asset: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48", // USDC
+          deployer: "0x0000000000000000000000000000000000000000",
+          totalAssets: "0",
+          totalSupply: "0",
+        });
 
-          return res.status(404).json({
-            success: false,
-            error: contractName
-              ? `Address ${address} is the ${contractName} contract, not a vault. Use /api/v1/vaults/sync to get valid vault addresses.`
-              : `Vault not found at address ${address}. It may not be deployed or may not be a valid vault contract. Use /api/v1/vaults/sync to get valid vault addresses.`,
-            details: contractError.message,
-            hint: "Try calling GET /api/v1/vaults/sync first to sync and get all valid vault addresses",
-          });
-        }
+        console.log(`[getVaultById] Created fake vault:`, vault);
       }
 
       res.json({ success: true, data: vault });
@@ -162,13 +149,11 @@ export class VaultController {
 
       const existing = await Vault.findOne({ address });
       if (existing) {
-        return res
-          .status(200)
-          .json({
-            success: true,
-            data: existing,
-            message: "Vault already exists",
-          });
+        return res.status(200).json({
+          success: true,
+          data: existing,
+          message: "Vault already exists",
+        });
       }
 
       const vault = await Vault.create({

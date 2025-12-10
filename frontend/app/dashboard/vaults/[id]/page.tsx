@@ -1,133 +1,175 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { useParams } from "next/navigation"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { VaultPerformanceChart } from "@/components/vault-performance-chart"
-import { DepositModal } from "@/components/deposit-modal"
-import { WithdrawModal } from "@/components/withdraw-modal"
-import { useAccount, useReadContract } from "wagmi"
-import { useVaultInfo } from "@/hooks/use-vaults"
-import { useVaultContributors } from "@/hooks/use-contributors"
-import { formatEther, formatUnits } from "viem"
-import { Address } from "viem"
-import VaultABI from "@/lib/abis/Vault.json"
-import SparkVaultABI from "@/lib/abis/SparkVault.json"
-import { getAssetName, getAssetDecimalsByAddress } from "@/lib/assets"
-import { Skeleton } from "@/components/ui/skeleton"
-import { CONTRACTS } from "@/lib/contracts"
+import { useState } from "react";
+import { useParams } from "next/navigation";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { VaultPerformanceChart } from "@/components/vault-performance-chart";
+import { DepositModal } from "@/components/deposit-modal";
+import { WithdrawModal } from "@/components/withdraw-modal";
+import { useAccount, useReadContract } from "wagmi";
+import { useVaultInfo, useBackendVaultData } from "@/hooks/use-vaults";
+import { useVaultContributors } from "@/hooks/use-contributors";
+import { formatEther, formatUnits } from "viem";
+import { Address } from "viem";
+import VaultABI from "@/lib/abis/Vault.json";
+import SparkVaultABI from "@/lib/abis/SparkVault.json";
+import { getAssetName, getAssetDecimalsByAddress } from "@/lib/assets";
+import { Skeleton } from "@/components/ui/skeleton";
+import { CONTRACTS } from "@/lib/contracts";
 
 export default function VaultDetailPage() {
-  const params = useParams()
-  const [showDepositModal, setShowDepositModal] = useState(false)
-  const [showWithdrawModal, setShowWithdrawModal] = useState(false)
-  const { address } = useAccount()
-  const vaultAddress = params.id as Address
-  
-  const { vaultInfo, isLoading: isLoadingVault, refetch: refetchVaultInfo } = useVaultInfo(vaultAddress)
-  const { contributors, contributorData, isLoading: isLoadingContributors } = useVaultContributors(vaultAddress)
-  const { data: totalAssetsDirect, refetch: refetchTotalAssets } = useReadContract({
-    address: vaultAddress,
-    abi: VaultABI.abi as any,
-    functionName: 'totalAssets',
-    query: {
-      enabled: !!vaultAddress,
-      refetchInterval: 5000,
-    },
-  })
+  const params = useParams();
+  const [showDepositModal, setShowDepositModal] = useState(false);
+  const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+  const { address } = useAccount();
+  const vaultAddress = params.id as Address;
 
-  const { data: totalSupplyDirect, refetch: refetchTotalSupply } = useReadContract({
-    address: vaultAddress,
-    abi: VaultABI.abi as any,
-    functionName: 'totalSupply',
-    query: {
-      enabled: !!vaultAddress,
-      refetchInterval: 5000,
-    },
-  })
+  // Try to fetch from backend first (for newly created vaults)
+  const { vaultData: backendVaultData, isLoading: isLoadingBackendVault } =
+    useBackendVaultData(vaultAddress);
+
+  // Fallback to blockchain fetch for on-chain vaults
+  const {
+    vaultInfo,
+    isLoading: isLoadingVault,
+    refetch: refetchVaultInfo,
+  } = useVaultInfo(vaultAddress);
+  const {
+    contributors,
+    contributorData,
+    isLoading: isLoadingContributors,
+  } = useVaultContributors(vaultAddress);
+  const { data: totalAssetsDirect, refetch: refetchTotalAssets } =
+    useReadContract({
+      address: vaultAddress,
+      abi: VaultABI.abi as any,
+      functionName: "totalAssets",
+      query: {
+        enabled: !!vaultAddress,
+        refetchInterval: 5000,
+      },
+    });
+
+  const { data: totalSupplyDirect, refetch: refetchTotalSupply } =
+    useReadContract({
+      address: vaultAddress,
+      abi: VaultABI.abi as any,
+      functionName: "totalSupply",
+      query: {
+        enabled: !!vaultAddress,
+        refetchInterval: 5000,
+      },
+    });
 
   // Use direct reads as fallback if vaultInfo is missing or shows 0
-  const effectiveTotalAssets = vaultInfo?.totalAssetsValue && vaultInfo.totalAssetsValue > 0n
-    ? vaultInfo.totalAssetsValue
-    : (totalAssetsDirect ? BigInt(String(totalAssetsDirect)) : 0n)
-  
-  const effectiveTotalSupply = vaultInfo?.totalSupplyValue && vaultInfo.totalSupplyValue > 0n
-    ? vaultInfo.totalSupplyValue
-    : (totalSupplyDirect ? BigInt(String(totalSupplyDirect)) : 0n)
+  const effectiveTotalAssets =
+    vaultInfo?.totalAssetsValue && vaultInfo.totalAssetsValue > 0n
+      ? vaultInfo.totalAssetsValue
+      : totalAssetsDirect
+      ? BigInt(String(totalAssetsDirect))
+      : 0n;
+
+  const effectiveTotalSupply =
+    vaultInfo?.totalSupplyValue && vaultInfo.totalSupplyValue > 0n
+      ? vaultInfo.totalSupplyValue
+      : totalSupplyDirect
+      ? BigInt(String(totalSupplyDirect))
+      : 0n;
   const { data: sparkVaultInfo } = useReadContract({
     address: vaultAddress,
     abi: SparkVaultABI.abi as any,
-    functionName: 'getVaultInfo',
+    functionName: "getVaultInfo",
     query: {
       enabled: !!vaultAddress,
     },
-  })
+  });
 
   // Try to get asset address from vault contract
   const { data: sparkAsset } = useReadContract({
     address: vaultAddress,
     abi: SparkVaultABI.abi as any,
-    functionName: 'asset',
+    functionName: "asset",
     query: {
       enabled: !!vaultAddress,
     },
-  })
+  });
 
   const { data: regularAsset } = useReadContract({
     address: vaultAddress,
     abi: VaultABI.abi as any,
-    functionName: 'asset',
+    functionName: "asset",
     query: {
       enabled: !!vaultAddress && !sparkAsset,
     },
-  })
+  });
 
-  const assetAddress = (sparkAsset || regularAsset) as Address | undefined
-  const assetName = assetAddress ? getAssetName(assetAddress) : 'Unknown'
-  const assetDecimals = assetAddress ? getAssetDecimalsByAddress(assetAddress) : 18
+  const assetAddress = (sparkAsset || regularAsset) as Address | undefined;
+  const assetName = assetAddress ? getAssetName(assetAddress) : "Unknown";
+  const assetDecimals = assetAddress
+    ? getAssetDecimalsByAddress(assetAddress)
+    : 18;
 
   // Try to get owner/deployer from vault contract
   const { data: sparkOwner } = useReadContract({
     address: vaultAddress,
     abi: SparkVaultABI.abi as any,
-    functionName: 'owner',
+    functionName: "owner",
     query: {
       enabled: !!vaultAddress,
     },
-  })
+  });
 
   const { data: regularOwner } = useReadContract({
     address: vaultAddress,
     abi: VaultABI.abi as any,
-    functionName: 'owner',
+    functionName: "owner",
     query: {
       enabled: !!vaultAddress && !sparkOwner,
     },
-  })
+  });
 
-  const ownerAddress = (sparkOwner || regularOwner) as Address | undefined
+  const ownerAddress = (sparkOwner || regularOwner) as Address | undefined;
 
   // Extract availableYield from SparkVault info (6th value in tuple)
-  const availableYield = sparkVaultInfo && Array.isArray(sparkVaultInfo) && sparkVaultInfo.length >= 5
-    ? (sparkVaultInfo[4] as bigint)
-    : undefined
+  const availableYield =
+    sparkVaultInfo &&
+    Array.isArray(sparkVaultInfo) &&
+    sparkVaultInfo.length >= 5
+      ? (sparkVaultInfo[4] as bigint)
+      : undefined;
 
   if (!address) {
     return (
       <div className="p-6">
         <Card>
           <CardContent className="p-12 text-center">
-            <p className="text-foreground/70">Please connect your wallet to view vault details</p>
+            <p className="text-foreground/70">
+              Please connect your wallet to view vault details
+            </p>
           </CardContent>
         </Card>
       </div>
-    )
+    );
   }
 
-  if (isLoadingVault) {
+  const isLoading = isLoadingBackendVault && isLoadingVault;
+
+  // Use backend data if available, otherwise use blockchain data
+  const displayName =
+    backendVaultData?.name || vaultInfo?.name || "Unnamed Vault";
+  const displayDescription =
+    backendVaultData?.description || vaultInfo?.description || "No description";
+
+  if (isLoading) {
     return (
       <div className="p-6">
         <Card>
@@ -136,48 +178,61 @@ export default function VaultDetailPage() {
           </CardContent>
         </Card>
       </div>
-    )
+    );
   }
 
-  if (!vaultInfo) {
+  // Show error if neither backend nor blockchain has data
+  if (!backendVaultData && !vaultInfo) {
     return (
       <div className="p-6">
         <Card>
           <CardContent className="p-12 text-center">
-            <p className="text-foreground/70">Vault not found</p>
+            <p className="text-foreground/70">
+              Vault not found on backend or blockchain
+            </p>
+            <p className="text-xs text-foreground/50 mt-2">{vaultAddress}</p>
           </CardContent>
         </Card>
       </div>
-    )
+    );
   }
 
   // Format total assets with correct decimals
-  const totalAssetsFormatted = effectiveTotalAssets > 0n
-    ? Number(formatUnits(effectiveTotalAssets, assetDecimals)).toLocaleString(undefined, { maximumFractionDigits: 2 })
-    : '0'
-  
+  const totalAssetsFormatted =
+    effectiveTotalAssets > 0n
+      ? Number(formatUnits(effectiveTotalAssets, assetDecimals)).toLocaleString(
+          undefined,
+          { maximumFractionDigits: 2 }
+        )
+      : "0";
+
   // Format total supply with correct decimals (shares typically use 18 decimals)
-  const totalSupplyFormatted = effectiveTotalSupply > 0n
-    ? Number(formatEther(effectiveTotalSupply)).toLocaleString(undefined, { maximumFractionDigits: 2 })
-    : '0'
+  const totalSupplyFormatted =
+    effectiveTotalSupply > 0n
+      ? Number(formatEther(effectiveTotalSupply)).toLocaleString(undefined, {
+          maximumFractionDigits: 2,
+        })
+      : "0";
 
   const vault = {
     id: vaultAddress,
-    name: vaultInfo?.name || 'Unnamed Vault',
-    description: vaultInfo?.description || 'No description',
+    name: displayName,
+    description: displayDescription,
     totalAssets: `$${totalAssetsFormatted}`,
     yieldAPY: "0%", // Would need to calculate from yield
     monthlyYield: "$0", // Would need to calculate
     contributors: contributors?.length || 0,
     status: "active" as const,
-    deployer: ownerAddress ? `${ownerAddress.slice(0, 6)}...${ownerAddress.slice(-4)}` : 'Unknown',
+    deployer: ownerAddress
+      ? `${ownerAddress.slice(0, 6)}...${ownerAddress.slice(-4)}`
+      : "Unknown",
     owner: ownerAddress,
     asset: assetName,
     assetAddress: assetAddress,
     strategyName: sparkAsset ? "Spark's Curated Yield" : "Standard Vault",
     lastDistribution: "N/A",
     nextDistribution: "N/A",
-  }
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -187,7 +242,9 @@ export default function VaultDetailPage() {
           <h1 className="text-3xl font-bold">{vault.name}</h1>
           <p className="text-foreground/70 mt-1">{vault.description}</p>
         </div>
-        <Badge variant={vault.status === "active" ? "default" : "secondary"}>{vault.status}</Badge>
+        <Badge variant={vault.status === "active" ? "default" : "secondary"}>
+          {vault.status}
+        </Badge>
       </div>
 
       {/* Key Metrics */}
@@ -205,7 +262,9 @@ export default function VaultDetailPage() {
             <CardTitle className="text-sm font-medium">Yield APY</CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-3xl font-bold text-secondary">{vault.yieldAPY}</p>
+            <p className="text-3xl font-bold text-secondary">
+              {vault.yieldAPY}
+            </p>
           </CardContent>
         </Card>
         <Card>
@@ -239,7 +298,9 @@ export default function VaultDetailPage() {
           <Card>
             <CardHeader>
               <CardTitle>Yield Performance</CardTitle>
-              <CardDescription>Last 12 months of yield generation</CardDescription>
+              <CardDescription>
+                Last 12 months of yield generation
+              </CardDescription>
             </CardHeader>
             <CardContent>
               {isLoadingVault ? (
@@ -251,7 +312,7 @@ export default function VaultDetailPage() {
                   </div>
                 </div>
               ) : (
-                <VaultPerformanceChart 
+                <VaultPerformanceChart
                   totalAssets={effectiveTotalAssets}
                   totalSupply={effectiveTotalSupply}
                   availableYield={availableYield}
@@ -264,10 +325,16 @@ export default function VaultDetailPage() {
 
           {/* Action Buttons */}
           <div className="flex gap-4">
-            <Button onClick={() => setShowDepositModal(true)} className="bg-primary hover:bg-primary/90">
+            <Button
+              onClick={() => setShowDepositModal(true)}
+              className="bg-primary hover:bg-primary/90"
+            >
               Deposit
             </Button>
-            <Button onClick={() => setShowWithdrawModal(true)} variant="outline">
+            <Button
+              onClick={() => setShowWithdrawModal(true)}
+              variant="outline"
+            >
               Withdraw
             </Button>
           </div>
@@ -277,13 +344,18 @@ export default function VaultDetailPage() {
           <Card>
             <CardHeader>
               <CardTitle>Contributors</CardTitle>
-              <CardDescription>Team members receiving yield distributions</CardDescription>
+              <CardDescription>
+                Team members receiving yield distributions
+              </CardDescription>
             </CardHeader>
             <CardContent>
               {isLoadingContributors ? (
                 <div className="space-y-4">
                   {[1, 2, 3].map((i) => (
-                    <div key={i} className="flex items-center justify-between py-3 border-b border-border">
+                    <div
+                      key={i}
+                      className="flex items-center justify-between py-3 border-b border-border"
+                    >
                       <div className="flex-1 space-y-2">
                         <Skeleton className="h-5 w-32" />
                         <Skeleton className="h-4 w-24" />
@@ -298,8 +370,12 @@ export default function VaultDetailPage() {
                 </div>
               ) : !contributorData || contributorData.length === 0 ? (
                 <div className="text-center py-12">
-                  <p className="text-foreground/70 mb-4">No contributors added yet</p>
-                  <p className="text-sm text-foreground/50">Add contributors to start distributing yield</p>
+                  <p className="text-foreground/70 mb-4">
+                    No contributors added yet
+                  </p>
+                  <p className="text-sm text-foreground/50">
+                    Add contributors to start distributing yield
+                  </p>
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -311,18 +387,33 @@ export default function VaultDetailPage() {
                         className="flex items-center justify-between py-3 border-b border-border last:border-0"
                       >
                         <div>
-                          <p className="font-medium">{contributor.name || 'Unnamed Contributor'}</p>
-                          <p className="text-sm text-foreground/70">{contributor.role || 'No role specified'}</p>
+                          <p className="font-medium">
+                            {contributor.name || "Unnamed Contributor"}
+                          </p>
+                          <p className="text-sm text-foreground/70">
+                            {contributor.role || "No role specified"}
+                          </p>
                           <p className="text-xs text-foreground/50 font-mono mt-1">
-                            {contributor.wallet?.slice(0, 6)}...{contributor.wallet?.slice(-4)}
+                            {contributor.wallet?.slice(0, 6)}...
+                            {contributor.wallet?.slice(-4)}
                           </p>
                         </div>
                         <div className="text-right">
                           <p className="font-bold">
-                            ${Number(formatEther(contributor.totalEarned || 0n)).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                            $
+                            {Number(
+                              formatEther(contributor.totalEarned || 0n)
+                            ).toLocaleString(undefined, {
+                              maximumFractionDigits: 2,
+                            })}
                           </p>
                           <p className="text-xs text-foreground/50">
-                            {Number(formatEther(contributor.monthlyAllocation || 0n)).toLocaleString(undefined, { maximumFractionDigits: 2 })}/month
+                            {Number(
+                              formatEther(contributor.monthlyAllocation || 0n)
+                            ).toLocaleString(undefined, {
+                              maximumFractionDigits: 2,
+                            })}
+                            /month
                           </p>
                         </div>
                       </div>
@@ -339,7 +430,9 @@ export default function VaultDetailPage() {
               <CardTitle>Vault Configuration</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {isLoadingVault || (!sparkAsset && !regularAsset) || !ownerAddress ? (
+              {isLoadingVault ||
+              (!sparkAsset && !regularAsset) ||
+              !ownerAddress ? (
                 <div className="space-y-4">
                   {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
                     <div key={i} className="space-y-2">
@@ -365,7 +458,9 @@ export default function VaultDetailPage() {
                   </div>
                   <div>
                     <p className="text-sm text-foreground/70">Owner/Deployer</p>
-                    <p className="text-lg font-medium font-mono text-sm">{vault.deployer}</p>
+                    <p className="text-lg font-medium font-mono text-sm">
+                      {vault.deployer}
+                    </p>
                     {ownerAddress && (
                       <a
                         href={`${CONTRACTS.EXPLORER_URL}/address/${ownerAddress}`}
@@ -379,7 +474,9 @@ export default function VaultDetailPage() {
                   </div>
                   <div>
                     <p className="text-sm text-foreground/70">Vault Address</p>
-                    <p className="text-lg font-medium font-mono text-sm">{vaultAddress.slice(0, 6)}...{vaultAddress.slice(-4)}</p>
+                    <p className="text-lg font-medium font-mono text-sm">
+                      {vaultAddress.slice(0, 6)}...{vaultAddress.slice(-4)}
+                    </p>
                     <a
                       href={`${CONTRACTS.EXPLORER_URL}/address/${vaultAddress}`}
                       target="_blank"
@@ -396,16 +493,27 @@ export default function VaultDetailPage() {
                   <div>
                     <p className="text-sm text-foreground/70">Total Shares</p>
                     <p className="text-lg font-medium">
-                      {Number(formatEther(effectiveTotalSupply)).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                      {Number(formatEther(effectiveTotalSupply)).toLocaleString(
+                        undefined,
+                        { maximumFractionDigits: 2 }
+                      )}
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm text-foreground/70">Last Distribution</p>
-                    <p className="text-lg font-medium">{vault.lastDistribution}</p>
+                    <p className="text-sm text-foreground/70">
+                      Last Distribution
+                    </p>
+                    <p className="text-lg font-medium">
+                      {vault.lastDistribution}
+                    </p>
                   </div>
                   <div>
-                    <p className="text-sm text-foreground/70">Next Distribution</p>
-                    <p className="text-lg font-medium">{vault.nextDistribution}</p>
+                    <p className="text-sm text-foreground/70">
+                      Next Distribution
+                    </p>
+                    <p className="text-lg font-medium">
+                      {vault.nextDistribution}
+                    </p>
                   </div>
                 </>
               )}
@@ -414,18 +522,18 @@ export default function VaultDetailPage() {
         </TabsContent>
       </Tabs>
 
-      <DepositModal 
-        open={showDepositModal} 
-        onOpenChange={setShowDepositModal} 
+      <DepositModal
+        open={showDepositModal}
+        onOpenChange={setShowDepositModal}
         vaultAddress={vaultAddress}
         assetName={vault.asset}
         assetAddress={vault.assetAddress}
       />
-      <WithdrawModal 
-        open={showWithdrawModal} 
-        onOpenChange={setShowWithdrawModal} 
+      <WithdrawModal
+        open={showWithdrawModal}
+        onOpenChange={setShowWithdrawModal}
         vaultAddress={vaultAddress}
       />
     </div>
-  )
+  );
 }
