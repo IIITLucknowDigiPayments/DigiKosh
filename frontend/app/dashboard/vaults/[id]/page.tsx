@@ -17,7 +17,10 @@ import { DepositModal } from "@/components/deposit-modal";
 import { WithdrawModal } from "@/components/withdraw-modal";
 import { useAccount, useReadContract } from "wagmi";
 import { useVaultInfo, useBackendVaultData } from "@/hooks/use-vaults";
-import { useVaultContributors } from "@/hooks/use-contributors";
+import {
+  useVaultContributors,
+  useBackendContributors,
+} from "@/hooks/use-contributors";
 import { formatEther, formatUnits } from "viem";
 import { Address } from "viem";
 import VaultABI from "@/lib/abis/Vault.json";
@@ -48,6 +51,8 @@ export default function VaultDetailPage() {
     contributorData,
     isLoading: isLoadingContributors,
   } = useVaultContributors(vaultAddress);
+  const { contributors: backendContributors, isLoading: isLoadingBackendContrib } =
+    useBackendContributors(vaultAddress);
   const { data: totalAssetsDirect, refetch: refetchTotalAssets } =
     useReadContract({
       address: vaultAddress,
@@ -214,14 +219,43 @@ export default function VaultDetailPage() {
         })
       : "0";
 
+  // compute monthly yield as 0.19% of total assets (i.e., 19/10000 of assets)
+  const monthlyYieldUnits =
+    effectiveTotalAssets > 0n ? (effectiveTotalAssets * 19n) / 10000n : 0n;
+  const monthlyYieldNumber = Number(
+    formatUnits(monthlyYieldUnits, assetDecimals)
+  );
+  const monthlyYieldFormatted = monthlyYieldNumber.toLocaleString(undefined, {
+    maximumFractionDigits: 4,
+  });
+
+  const totalAssetsNumber =
+    effectiveTotalAssets > 0n
+      ? Number(formatUnits(effectiveTotalAssets, assetDecimals))
+      : 0;
+
+  // my = monthly yield percent (e.g. 0.19 for 0.19%)
+  const myPercent = totalAssetsNumber > 0 ? (monthlyYieldNumber / totalAssetsNumber) * 100 : 0;
+  // APY formula: (((100 + my)/100)^12 - 1) * 100
+  const apyPercent = myPercent > 0 ? (Math.pow((100 + myPercent) / 100, 12) - 1) * 100 : 0;
+  const apyFormatted = apyPercent.toLocaleString(undefined, { maximumFractionDigits: 2 });
+
+  const contributorCount =
+    backendContributors && backendContributors.length > 0
+      ? backendContributors.length
+      : contributors?.length || 0;
+
+  const isLoadingAllContributors = isLoadingContributors || isLoadingBackendContrib;
+
   const vault = {
     id: vaultAddress,
     name: displayName,
     description: displayDescription,
     totalAssets: `$${totalAssetsFormatted}`,
-    yieldAPY: "0%", // Would need to calculate from yield
-    monthlyYield: "$0", // Would need to calculate
-    contributors: contributors?.length || 0,
+    // APY computed from monthly yield percent using formula: (((100 + my)/100)^12 - 1) * 100
+    yieldAPY: `${apyFormatted}%`,
+    monthlyYield: `$${monthlyYieldFormatted}`,
+    contributors: contributorCount,
     status: "active" as const,
     deployer: ownerAddress
       ? `${ownerAddress.slice(0, 6)}...${ownerAddress.slice(-4)}`
@@ -349,7 +383,7 @@ export default function VaultDetailPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {isLoadingContributors ? (
+              {isLoadingAllContributors ? (
                 <div className="space-y-4">
                   {[1, 2, 3].map((i) => (
                     <div

@@ -25,6 +25,18 @@ export function VaultCardItem({ vaultAddress }: VaultCardItemProps) {
     return null;
   }
 
+  const totalAssetsNumber = vaultData.totalAssets
+    ? Number(vaultData.totalAssets)
+    : 0;
+
+  const monthlyYieldNumber = totalAssetsNumber * 0.0019; // 0.19%
+  const monthlyYieldFormatted = `$${monthlyYieldNumber.toLocaleString(undefined, {
+    maximumFractionDigits: 2,
+  })}`;
+  const myPercent = totalAssetsNumber > 0 ? (monthlyYieldNumber / totalAssetsNumber) * 100 : 0;
+  const apyPercent = myPercent > 0 ? (Math.pow((100 + myPercent) / 100, 12) - 1) * 100 : 0;
+  const apyFormatted = apyPercent.toLocaleString(undefined, { maximumFractionDigits: 2 });
+
   const vault = {
     id: vaultAddress,
     name: vaultData.name || "Unnamed Vault",
@@ -34,9 +46,9 @@ export function VaultCardItem({ vaultAddress }: VaultCardItemProps) {
           maximumFractionDigits: 2,
         })}`
       : "$0",
-    yieldAPY: "0%",
-    monthlyYield: "$0",
-    contributors: 0,
+    yieldAPY: `${apyFormatted}%`,
+    monthlyYield: monthlyYieldFormatted,
+    contributors: vaultData.contributorCount || 0,
     status: "active" as const,
     deployer: vaultAddress.slice(0, 6) + "..." + vaultAddress.slice(-4),
   };
