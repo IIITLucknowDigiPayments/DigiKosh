@@ -2,7 +2,7 @@
 
 import type React from "react";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   Dialog,
   DialogContent,
@@ -48,6 +48,7 @@ export function AddContributorModal({
     wallet: "",
     monthlyAllocation: "",
   });
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (hash && !isPending && !isSuccess && vaultAddress) {
@@ -78,6 +79,15 @@ export function AddContributorModal({
       return;
     }
   }, [isSuccess, isPending, hash, vaultAddress, toast, onOpenChange]);
+
+  useEffect(() => {
+    return () => {
+      // Cleanup any pending toast timer on unmount
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current as unknown as number);
+      }
+    };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -122,10 +132,14 @@ export function AddContributorModal({
 
       // Close modal immediately after backend save succeeds
       // (blockchain transaction continues in background)
-      toast({
-        title: "Contributor Added",
-        description: "Contributor has been added successfully!",
-      });
+      // Delay showing the success toast so UI updates appear first
+      const SUCCESS_TOAST_DELAY_MS = 15000; // 15 seconds
+      toastTimerRef.current = setTimeout(() => {
+        toast({
+          title: "Contributor Added",
+          description: "Contributor has been added successfully!",
+        });
+      }, SUCCESS_TOAST_DELAY_MS);
 
       setTimeout(() => {
         onOpenChange(false);

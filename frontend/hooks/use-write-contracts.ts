@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   useWriteContract,
   useWaitForTransactionReceipt,
@@ -46,6 +46,7 @@ export function useCreateVault() {
     asset: string;
     assetName: string;
   } | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const createVault = async (
     assetName: string,
@@ -96,11 +97,15 @@ export function useCreateVault() {
       queryClient.refetchQueries({ queryKey: ["vaults"] });
 
       console.log("[Vault] Query refetched - vault should appear now");
-
-      toast({
-        title: "Success",
-        description: "Vault created and visible in the list!",
-      });
+      // Delay showing success toast so UI updates appear first
+      const SUCCESS_TOAST_DELAY_MS = 15000; // 15 seconds
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+      toastTimerRef.current = setTimeout(() => {
+        toast({
+          title: "Success",
+          description: "Vault created and visible in the list!",
+        });
+      }, SUCCESS_TOAST_DELAY_MS);
 
       // Now initiate blockchain transaction (don't wait for it)
       // Check if on correct network first
@@ -252,11 +257,14 @@ export function useAddContributor() {
         monthlyAllocation,
       });
 
+      // Removed per user request: do not show immediate 'waiting for blockchain' toast
+      /*
       toast({
         title: "Success",
         description:
           "Contributor saved! Waiting for blockchain confirmation...",
       });
+      */
 
       // DO NOT invalidate queries here - wait for blockchain confirmation
       // This ensures the contributor card won't appear until MetaMask confirms
@@ -313,7 +321,7 @@ export function useAddContributor() {
           "Blockchain transaction confirmed! Refreshing contributors...",
       });
 
-      // Wait 3 seconds then invalidate and refetch queries to show contributor card
+      // Wait 15 seconds then invalidate and refetch queries to show contributor card
       const timer = setTimeout(async () => {
         // Invalidate queries to force refetch
         await queryClient.refetchQueries({
@@ -331,7 +339,7 @@ export function useAddContributor() {
 
         // Clear contributor data
         setContributorData(null);
-      }, 3000);
+      }, 15000);
 
       return () => clearTimeout(timer);
     }
