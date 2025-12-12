@@ -90,13 +90,22 @@ export function useCreateVault() {
         totalSupply: "0",
       });
 
-      console.log("[Vault] Backend save successful", response);
+      console.log("[Vault] ✅ Backend save successful", response);
 
-      // Invalidate and refetch vaults query to show new vault immediately
-      queryClient.invalidateQueries({ queryKey: ["vaults"] });
-      queryClient.refetchQueries({ queryKey: ["vaults"] });
+      // CRITICAL: Invalidate all vault-related queries to update dashboard immediately
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["vaults"], exact: false }),
+        queryClient.invalidateQueries({ queryKey: ["backend-vaults-total-assets"], exact: false }),
+        queryClient.invalidateQueries({ queryKey: ["readContract"], exact: false }),
+      ]);
 
-      console.log("[Vault] Query refetched - vault should appear now");
+      // Immediately refetch to update dashboard
+      await Promise.all([
+        queryClient.refetchQueries({ queryKey: ["vaults"], exact: false }),
+        queryClient.refetchQueries({ queryKey: ["backend-vaults-total-assets"], exact: false }),
+      ]);
+
+      console.log("[Vault] ✅ All queries invalidated and refetched - vault should appear in dashboard now");
       // Delay showing success toast so UI updates appear first
       const SUCCESS_TOAST_DELAY_MS = 15000; // 15 seconds
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
@@ -141,6 +150,43 @@ export function useCreateVault() {
       });
     }
   };
+
+  // Invalidate queries after blockchain confirmation to sync on-chain data
+  useEffect(() => {
+    if (isSuccess && hash && vaultData) {
+      toast({
+        title: "Success",
+        description: "Blockchain transaction confirmed! Syncing vault data...",
+      });
+
+      // Wait 2 seconds for blockchain to index, then sync and refetch
+      const timer = setTimeout(async () => {
+        console.log("[Vault] 🔄 Blockchain confirmed, syncing vaults and refetching queries...");
+        
+        // Trigger backend sync to update database with real vault address
+        try {
+          await apiClient.syncVaults();
+          console.log("[Vault] ✅ Vaults synced from blockchain to database");
+        } catch (error) {
+          console.warn("[Vault] ⚠️ Could not sync vaults (this is okay):", error);
+        }
+        
+        // Refetch all queries
+        await Promise.all([
+          queryClient.refetchQueries({ queryKey: ["vaults"], exact: false }),
+          queryClient.refetchQueries({ queryKey: ["backend-vaults-total-assets"], exact: false }),
+          queryClient.refetchQueries({ queryKey: ["readContract"], exact: false }),
+        ]);
+
+        console.log("[Vault] ✅ All queries refetched after blockchain confirmation");
+        
+        // Clear vault data
+        setVaultData(null);
+      }, 2000);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isSuccess, hash, vaultData, queryClient, toast]);
 
   return {
     createVault,
@@ -236,8 +282,10 @@ export function useAddContributor() {
       return;
     }
 
-    // Convert monthly allocation to wei (assuming 18 decimals for now)
+    // Convert monthly allocation to wei (18 decimals) - add 18 zeros
     const allocation = parseEther(monthlyAllocation);
+    // Convert to string for backend (wei format with 18 decimals)
+    const monthlyAllocationWei = allocation.toString();
 
     try {
       // STEP 1: Save to backend immediately (don't wait for blockchain)
@@ -246,28 +294,55 @@ export function useAddContributor() {
         wallet,
         name,
         role,
-        monthlyAllocation,
+        monthlyAllocation: monthlyAllocation, // Dollar value
+        monthlyAllocationWei: monthlyAllocationWei, // Wei value (18 decimals)
       });
 
+      // Send wei value (with 18 zeros) to backend instead of dollar value
       await apiClient.createContributor({
         vault: String(vaultAddress),
         wallet: String(wallet),
         name,
         role,
-        monthlyAllocation,
+        monthlyAllocation: monthlyAllocationWei, // Send wei format (18 decimals)
       });
 
-      // Removed per user request: do not show immediate 'waiting for blockchain' toast
-      /*
-      toast({
-        title: "Success",
-        description:
-          "Contributor saved! Waiting for blockchain confirmation...",
-      });
-      */
+      console.log("[addContributor] ✅ Contributor saved to backend, invalidating queries...");
 
-      // DO NOT invalidate queries here - wait for blockchain confirmation
-      // This ensures the contributor card won't appear until MetaMask confirms
+      // CRITICAL: Invalidate queries immediately after backend save
+      // This ensures the dashboard updates right away
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: ["all-contributors"],
+          exact: false,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["contributors"],
+          exact: false,
+        }),
+        queryClient.invalidateQueries({
+          queryKey: ["backend-vaults-total-assets"],
+          exact: false,
+        }),
+      ]);
+
+      // Immediately refetch to update dashboard
+      await Promise.all([
+        queryClient.refetchQueries({
+          queryKey: ["all-contributors"],
+          exact: false,
+        }),
+        queryClient.refetchQueries({
+          queryKey: ["contributors"],
+          exact: false,
+        }),
+        queryClient.refetchQueries({
+          queryKey: ["backend-vaults-total-assets"],
+          exact: false,
+        }),
+      ]);
+
+      console.log("[addContributor] ✅ Dashboard queries invalidated and refetched - contributor should appear now");
 
       // STEP 2: Initiate blockchain transaction in background (don't wait)
       console.log(
@@ -312,34 +387,46 @@ export function useAddContributor() {
     }
   };
 
-  // Invalidate queries only after blockchain confirmation (with 3 sec delay)
+  // Also invalidate queries after blockchain confirmation (to sync on-chain data)
   useEffect(() => {
     if (isSuccess && hash && contributorData) {
       toast({
         title: "Success",
         description:
-          "Blockchain transaction confirmed! Refreshing contributors...",
+          "Blockchain transaction confirmed! Refreshing data...",
       });
 
-      // Wait 15 seconds then invalidate and refetch queries to show contributor card
+      // Wait 2 seconds for blockchain to index, then refetch
       const timer = setTimeout(async () => {
-        // Invalidate queries to force refetch
-        await queryClient.refetchQueries({
-          queryKey: ["readContract"],
-          exact: false,
-        });
-        await queryClient.refetchQueries({
-          queryKey: ["contributors"],
-          exact: false,
-        });
+        console.log("[addContributor] 🔄 Blockchain confirmed, refetching all queries...");
+        
+        // Refetch all contributor-related queries to sync on-chain data
+        await Promise.all([
+          queryClient.refetchQueries({
+            queryKey: ["readContract"],
+            exact: false,
+          }),
+          queryClient.refetchQueries({
+            queryKey: ["contributors"],
+            exact: false,
+          }),
+          queryClient.refetchQueries({
+            queryKey: ["all-contributors"],
+            exact: false,
+          }),
+          queryClient.refetchQueries({
+            queryKey: ["backend-vaults-total-assets"],
+            exact: false,
+          }),
+        ]);
 
         console.log(
-          "[addContributor] Queries refetched after blockchain confirmation"
+          "[addContributor] ✅ All queries refetched after blockchain confirmation"
         );
 
         // Clear contributor data
         setContributorData(null);
-      }, 15000);
+      }, 2000); // Reduced from 15 seconds to 2 seconds
 
       return () => clearTimeout(timer);
     }

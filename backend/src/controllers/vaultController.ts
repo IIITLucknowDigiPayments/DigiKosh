@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { Vault } from "../models/Vault";
+import { Contributor } from "../models/Contributor";
 import { contractService } from "../services/contractService";
 
 export class VaultController {
@@ -67,17 +68,74 @@ export class VaultController {
             // Update existing vault
             existing.name = vaultInfo.name;
             existing.description = vaultInfo.description;
-            existing.totalAssets = vaultInfo.totalAssets;
+            // DO NOT use vaultInfo.totalAssets from contract
+            // Instead, calculate totalAssets as sum of contributors' monthly allocations
+            const contributors = await Contributor.find({
+              vault: address,
+              isActive: true,
+            });
+            
+            // Contributors' monthlyAllocation is in wei (18 decimals)
+            // Convert to base unit (6 decimals for USDC) by dividing by 10^12
+            let totalAssetsSumWei = 0n;
+            let contributorCount = 0;
+            for (const contrib of contributors) {
+              if (contrib.isActive && contrib.monthlyAllocation) {
+                try {
+                  const allocation = BigInt(contrib.monthlyAllocation || "0");
+                  totalAssetsSumWei += allocation;
+                  contributorCount++;
+                } catch (e) {
+                  console.error(`Error parsing monthlyAllocation for contributor ${contrib.wallet}:`, e);
+                }
+              }
+            }
+            
+            // Convert from wei (18 decimals) to base unit (6 decimals for USDC)
+            const totalAssetsBaseUnit = totalAssetsSumWei / 1000000000000n; // 10^12
+            existing.totalAssets = totalAssetsBaseUnit.toString();
+            existing.contributorCount = contributorCount;
             existing.totalSupply = vaultInfo.totalSupply;
             existing.asset = vaultInfo.asset;
             existing.deployer = vaultInfo.deployer;
             await existing.save();
             updatedVaults.push(existing);
           } else {
-            // Create new vault
+            // Create new vault - calculate totalAssets from contributors
+            const contributors = await Contributor.find({
+              vault: address,
+              isActive: true,
+            });
+            
+            // Contributors' monthlyAllocation is in wei (18 decimals)
+            // Convert to base unit (6 decimals for USDC) by dividing by 10^12
+            let totalAssetsSumWei = 0n;
+            let contributorCount = 0;
+            for (const contrib of contributors) {
+              if (contrib.isActive && contrib.monthlyAllocation) {
+                try {
+                  const allocation = BigInt(contrib.monthlyAllocation || "0");
+                  totalAssetsSumWei += allocation;
+                  contributorCount++;
+                } catch (e) {
+                  console.error(`Error parsing monthlyAllocation for contributor ${contrib.wallet}:`, e);
+                }
+              }
+            }
+            
+            // Convert from wei (18 decimals) to base unit (6 decimals for USDC)
+            const totalAssetsBaseUnit = totalAssetsSumWei / 1000000000000n; // 10^12
+            
             const vault = await Vault.create({
               address,
-              ...vaultInfo,
+              name: vaultInfo.name,
+              description: vaultInfo.description,
+              totalAssets: totalAssetsBaseUnit.toString(), // Sum of contributors' monthly allocations in base unit (6 decimals)
+              totalSupply: vaultInfo.totalSupply,
+              asset: vaultInfo.asset,
+              deployer: vaultInfo.deployer,
+              contributorCount: contributorCount,
+              monthlyYield: "0",
             });
             syncedVaults.push(vault);
           }
@@ -156,15 +214,40 @@ export class VaultController {
         });
       }
 
+      // Calculate totalAssets as sum of contributors' monthly allocations (initially 0)
+      // Contributors' monthlyAllocation is in wei (18 decimals)
+      // Convert to base unit (6 decimals for USDC) by dividing by 10^12
+      const contributors = await Contributor.find({
+        vault: address,
+        isActive: true,
+      });
+      
+      let totalAssetsSumWei = 0n;
+      let contributorCount = 0;
+      for (const contrib of contributors) {
+        if (contrib.isActive && contrib.monthlyAllocation) {
+          try {
+            const allocation = BigInt(contrib.monthlyAllocation || "0");
+            totalAssetsSumWei += allocation;
+            contributorCount++;
+          } catch (e) {
+            console.error(`Error parsing monthlyAllocation for contributor ${contrib.wallet}:`, e);
+          }
+        }
+      }
+
+      // Convert from wei (18 decimals) to base unit (6 decimals for USDC)
+      const totalAssetsBaseUnit = totalAssetsSumWei / 1000000000000n; // 10^12
+
       const vault = await Vault.create({
         address,
         name,
         description,
         asset: asset || "0x0000000000000000000000000000000000000000",
         deployer: deployer || "0x0000000000000000000000000000000000000000",
-        totalAssets: totalAssets || "0",
+        totalAssets: totalAssetsBaseUnit.toString(), // Sum of contributors' monthly allocations in base unit (6 decimals)
         totalSupply: totalSupply || "0",
-        contributorCount: 0,
+        contributorCount: contributorCount,
         monthlyYield: "0",
       });
 
@@ -202,11 +285,11 @@ export class VaultController {
         vault.contributorCount = contributorCount;
       }
 
-      // Calculate monthly yield as 0.7% of totalAssets
+      // Calculate monthly yield as 0.19% of totalAssets
       try {
         const assets = BigInt(vault.totalAssets || "0");
-        const yield07percent = (assets * BigInt(7)) / BigInt(1000); // 0.7% = 7/1000
-        vault.monthlyYield = yield07percent.toString();
+        const yield019percent = (assets * BigInt(19)) / BigInt(10000); // 0.19% = 19/10000
+        vault.monthlyYield = yield019percent.toString();
       } catch (e) {
         vault.monthlyYield = "0";
       }

@@ -35,6 +35,7 @@ export function useVaultContributors(vaultAddress?: Address) {
 
   // getVaultContributors returns a tuple: (address[] wallets, Contributor[] contributorData)
   // When wagmi/viem returns a tuple, it's an array: [wallets, contributorData]
+  // Contributor struct: (string name, string role, address wallet, uint256 monthlyAllocation, uint256 totalEarned, uint256 joinDate, bool isActive)
   let wallets: Address[] | undefined = undefined;
   let contributorData: Contributor[] | undefined = undefined;
 
@@ -42,7 +43,74 @@ export function useVaultContributors(vaultAddress?: Address) {
     if (Array.isArray(result) && result.length === 2) {
       // It's a tuple: [wallets, contributorData]
       wallets = result[0] as Address[];
-      contributorData = result[1] as Contributor[];
+      const rawContributorData = result[1];
+      
+      // Parse contributor data - can be array of objects or array of arrays
+      if (Array.isArray(rawContributorData)) {
+        contributorData = rawContributorData.map((contributor: any, index: number) => {
+          // If it's an object with named fields (viem struct parsing)
+          if (contributor && typeof contributor === 'object' && !Array.isArray(contributor)) {
+            // Handle both string and bigint values for monthlyAllocation and totalEarned
+            const monthlyAlloc = contributor.monthlyAllocation !== undefined && contributor.monthlyAllocation !== null
+              ? (typeof contributor.monthlyAllocation === 'string' 
+                  ? BigInt(contributor.monthlyAllocation) 
+                  : BigInt(contributor.monthlyAllocation))
+              : 0n;
+            
+            const totalEarn = contributor.totalEarned !== undefined && contributor.totalEarned !== null
+              ? (typeof contributor.totalEarned === 'string'
+                  ? BigInt(contributor.totalEarned)
+                  : BigInt(contributor.totalEarned))
+              : 0n;
+            
+            return {
+              vault: vaultAddress!,
+              wallet: contributor.wallet || wallets?.[index] || '0x0',
+              name: String(contributor.name || ''),
+              role: String(contributor.role || ''),
+              monthlyAllocation: monthlyAlloc,
+              totalEarned: totalEarn,
+              isActive: contributor.isActive !== undefined ? Boolean(contributor.isActive) : true,
+            } as Contributor;
+          }
+          // If it's an array (positional struct)
+          // Struct order: [name, role, wallet, monthlyAllocation, totalEarned, joinDate, isActive]
+          else if (Array.isArray(contributor) && contributor.length >= 7) {
+            // Handle both string and bigint values
+            const monthlyAlloc = contributor[3] !== undefined && contributor[3] !== null
+              ? (typeof contributor[3] === 'string'
+                  ? BigInt(contributor[3])
+                  : BigInt(contributor[3] || 0))
+              : 0n;
+            
+            const totalEarn = contributor[4] !== undefined && contributor[4] !== null
+              ? (typeof contributor[4] === 'string'
+                  ? BigInt(contributor[4])
+                  : BigInt(contributor[4] || 0))
+              : 0n;
+            
+            return {
+              vault: vaultAddress!,
+              wallet: contributor[2] || wallets?.[index] || '0x0',
+              name: String(contributor[0] || ''),
+              role: String(contributor[1] || ''),
+              monthlyAllocation: monthlyAlloc,
+              totalEarned: totalEarn,
+              isActive: contributor[6] !== undefined ? Boolean(contributor[6]) : true,
+            } as Contributor;
+          }
+          // Fallback
+          return {
+            vault: vaultAddress!,
+            wallet: wallets?.[index] || '0x0',
+            name: '',
+            role: '',
+            monthlyAllocation: 0n,
+            totalEarned: 0n,
+            isActive: true,
+          } as Contributor;
+        });
+      }
     } else if (Array.isArray(result)) {
       // Fallback: assume it's just the wallets array
       wallets = result as Address[];

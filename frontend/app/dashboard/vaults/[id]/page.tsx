@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useParams } from "next/navigation";
 import {
   Card,
@@ -20,6 +20,7 @@ import { useVaultInfo, useBackendVaultData } from "@/hooks/use-vaults";
 import {
   useVaultContributors,
   useBackendContributors,
+  useTotalMonthlyAllocation,
 } from "@/hooks/use-contributors";
 import { formatEther, formatUnits } from "viem";
 import { Address } from "viem";
@@ -53,6 +54,8 @@ export default function VaultDetailPage() {
   } = useVaultContributors(vaultAddress);
   const { contributors: backendContributors, isLoading: isLoadingBackendContrib } =
     useBackendContributors(vaultAddress);
+  const { totalAllocation: contractTotalAllocation, isLoading: isLoadingTotalAllocation } =
+    useTotalMonthlyAllocation(vaultAddress);
   const { data: totalAssetsDirect, refetch: refetchTotalAssets } =
     useReadContract({
       address: vaultAddress,
@@ -75,10 +78,19 @@ export default function VaultDetailPage() {
       },
     });
 
-  // Use direct reads as fallback if vaultInfo is missing or shows 0
+  // Use backend data first (already in base unit, 6 decimals), then blockchain as fallback
+  // Backend totalAssets is in base unit (6 decimals), so convert to BigInt for calculations
+  const backendTotalAssets = backendVaultData?.totalAssets
+    ? BigInt(backendVaultData.totalAssets || "0")
+    : 0n;
+  
+  // Use backend data if available, otherwise use blockchain data
+  // Backend data is in base unit (6 decimals), blockchain data is in wei (18 decimals)
   const effectiveTotalAssets =
-    vaultInfo?.totalAssetsValue && vaultInfo.totalAssetsValue > 0n
-      ? vaultInfo.totalAssetsValue
+    backendTotalAssets > 0n
+      ? backendTotalAssets // Backend data is already in base unit (6 decimals)
+      : vaultInfo?.totalAssetsValue && vaultInfo.totalAssetsValue > 0n
+      ? vaultInfo.totalAssetsValue // Blockchain data is in wei (18 decimals)
       : totalAssetsDirect
       ? BigInt(String(totalAssetsDirect))
       : 0n;
@@ -203,9 +215,12 @@ export default function VaultDetailPage() {
   }
 
   // Format total assets with correct decimals
+  // If using backend data, it's already in base unit (6 decimals)
+  // If using blockchain data, use assetDecimals
+  const decimalsToUse = backendTotalAssets > 0n ? 6 : assetDecimals;
   const totalAssetsFormatted =
     effectiveTotalAssets > 0n
-      ? Number(formatUnits(effectiveTotalAssets, assetDecimals)).toLocaleString(
+      ? Number(formatUnits(effectiveTotalAssets, decimalsToUse)).toLocaleString(
           undefined,
           { maximumFractionDigits: 2 }
         )
@@ -223,7 +238,7 @@ export default function VaultDetailPage() {
   const monthlyYieldUnits =
     effectiveTotalAssets > 0n ? (effectiveTotalAssets * 19n) / 10000n : 0n;
   const monthlyYieldNumber = Number(
-    formatUnits(monthlyYieldUnits, assetDecimals)
+    formatUnits(monthlyYieldUnits, decimalsToUse)
   );
   const monthlyYieldFormatted = monthlyYieldNumber.toLocaleString(undefined, {
     maximumFractionDigits: 4,
@@ -231,7 +246,7 @@ export default function VaultDetailPage() {
 
   const totalAssetsNumber =
     effectiveTotalAssets > 0n
-      ? Number(formatUnits(effectiveTotalAssets, assetDecimals))
+      ? Number(formatUnits(effectiveTotalAssets, decimalsToUse))
       : 0;
 
   // my = monthly yield percent (e.g. 0.19 for 0.19%)
@@ -245,7 +260,48 @@ export default function VaultDetailPage() {
       ? backendContributors.length
       : contributors?.length || 0;
 
-  const isLoadingAllContributors = isLoadingContributors || isLoadingBackendContrib;
+  const isLoadingAllContributors = isLoadingContributors || isLoadingBackendContrib || isLoadingTotalAllocation;
+
+  // Calculate sum of all contributors' monthly allocations
+  // Priority: Use contract's getTotalMonthlyAllocation if available, otherwise calculate from contributor data
+  const totalMonthlyAllocationSum = useMemo(() => {
+    // First, try to use the contract's getTotalMonthlyAllocation function
+    if (contractTotalAllocation !== undefined && contractTotalAllocation !== null) {
+      return BigInt(contractTotalAllocation);
+    }
+    
+    // Fallback: Calculate from contributor data
+    let sum = 0n;
+    
+    // Sum from contract contributor data
+    if (contributorData && contributorData.length > 0) {
+      contributorData
+        .filter((c) => c.isActive)
+        .forEach((c) => {
+          sum += c.monthlyAllocation || 0n;
+        });
+    }
+    
+    // Also sum from backend contributors if available
+    if (backendContributors && backendContributors.length > 0) {
+      backendContributors
+        .filter((c: any) => c.isActive !== false)
+        .forEach((c: any) => {
+          try {
+            const allocation = BigInt(c.monthlyAllocation || '0');
+            sum += allocation;
+          } catch (e) {
+            // Ignore invalid values
+          }
+        });
+    }
+    
+    return sum;
+  }, [contractTotalAllocation, contributorData, backendContributors]);
+
+  const totalMonthlyAllocationFormatted = totalMonthlyAllocationSum > 0n
+    ? Number(formatEther(totalMonthlyAllocationSum)).toLocaleString(undefined, { maximumFractionDigits: 2 })
+    : '0';
 
   const vault = {
     id: vaultAddress,
@@ -351,7 +407,7 @@ export default function VaultDetailPage() {
                   totalSupply={effectiveTotalSupply}
                   availableYield={availableYield}
                   vaultAddress={vaultAddress}
-                  assetDecimals={assetDecimals}
+                  assetDecimals={decimalsToUse}
                 />
               )}
             </CardContent>
@@ -383,6 +439,23 @@ export default function VaultDetailPage() {
               </CardDescription>
             </CardHeader>
             <CardContent>
+              {/* Total Monthly Allocation Summary */}
+              {!isLoadingAllContributors && totalMonthlyAllocationSum > 0n && (
+                <div className="mb-6 p-4 bg-muted rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-foreground/70">Total Monthly Allocation</p>
+                      <p className="text-2xl font-bold mt-1">
+                        ${totalMonthlyAllocationFormatted}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm text-foreground/70">Active Contributors</p>
+                      <p className="text-2xl font-bold mt-1">{contributorCount}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
               {isLoadingAllContributors ? (
                 <div className="space-y-4">
                   {[1, 2, 3].map((i) => (
@@ -402,7 +475,7 @@ export default function VaultDetailPage() {
                     </div>
                   ))}
                 </div>
-              ) : !contributorData || contributorData.length === 0 ? (
+              ) : (!contributorData || contributorData.length === 0) && (!backendContributors || backendContributors.length === 0) ? (
                 <div className="text-center py-12">
                   <p className="text-foreground/70 mb-4">
                     No contributors added yet
@@ -413,7 +486,8 @@ export default function VaultDetailPage() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {contributorData
+                  {/* Show contract contributors first */}
+                  {contributorData && contributorData.length > 0 && contributorData
                     .filter((contributor) => contributor.isActive)
                     .map((contributor, idx) => (
                       <div
@@ -442,7 +516,7 @@ export default function VaultDetailPage() {
                             })}
                           </p>
                           <p className="text-xs text-foreground/50">
-                            {Number(
+                            ${Number(
                               formatEther(contributor.monthlyAllocation || 0n)
                             ).toLocaleString(undefined, {
                               maximumFractionDigits: 2,
@@ -452,6 +526,45 @@ export default function VaultDetailPage() {
                         </div>
                       </div>
                     ))}
+                  {/* Show backend contributors if contract data is not available */}
+                  {(!contributorData || contributorData.length === 0) && backendContributors && backendContributors.length > 0 && backendContributors
+                    .filter((c: any) => c.isActive !== false)
+                    .map((contributor: any, idx: number) => {
+                      const monthlyAlloc = BigInt(contributor.monthlyAllocation || '0');
+                      const totalEarn = BigInt(contributor.totalEarned || '0');
+                      return (
+                        <div
+                          key={contributor.wallet || idx}
+                          className="flex items-center justify-between py-3 border-b border-border last:border-0"
+                        >
+                          <div>
+                            <p className="font-medium">
+                              {contributor.name || "Unnamed Contributor"}
+                            </p>
+                            <p className="text-sm text-foreground/70">
+                              {contributor.role || "No role specified"}
+                            </p>
+                            <p className="text-xs text-foreground/50 font-mono mt-1">
+                              {contributor.wallet?.slice(0, 6)}...
+                              {contributor.wallet?.slice(-4)}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold">
+                              ${Number(formatEther(totalEarn)).toLocaleString(undefined, {
+                                maximumFractionDigits: 2,
+                              })}
+                            </p>
+                            <p className="text-xs text-foreground/50">
+                              ${Number(formatEther(monthlyAlloc)).toLocaleString(undefined, {
+                                maximumFractionDigits: 2,
+                              })}
+                              /month
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
                 </div>
               )}
             </CardContent>

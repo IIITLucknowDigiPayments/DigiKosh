@@ -10,13 +10,14 @@ import {
 import { OverviewChart } from "@/components/overview-chart";
 import { useDashboardStats } from "@/hooks/use-dashboard-stats";
 import { useAccount } from "wagmi";
-import { formatEther } from "viem";
 import { useEffect, useState } from "react";
 
 export function DashboardContent() {
   const { address } = useAccount();
   const {
     totalAssets,
+    totalYield,
+    yieldAPY,
     vaultCount,
     contributorCount,
     avgAPY,
@@ -88,14 +89,18 @@ export function DashboardContent() {
               ) : (
                 <>
                   <div className="text-3xl font-bold">
-                    {yieldEarned
+                    {totalYield
+                      ? `$${Number(totalYield).toLocaleString(undefined, {
+                          maximumFractionDigits: 2,
+                        })}`
+                      : yieldEarned
                       ? `$${Number(yieldEarned).toLocaleString(undefined, {
                           maximumFractionDigits: 2,
                         })}`
                       : "$0"}
                   </div>
                   <p className="text-xs text-foreground/50 mt-1">
-                    From Spark's curated yield
+                    {yieldAPY ? `${yieldAPY}% APY` : ''} (0.19% monthly of total assets)
                   </p>
                 </>
               )}

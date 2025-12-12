@@ -135,15 +135,15 @@ export function useAllVaults() {
     return merged;
   }, [allVaults, backendVaults]);
 
-  const totalCount = useMemo(() => {
-    const regular = regularVaultCount ? Number(regularVaultCount) : 0;
-    const spark = sparkVaultCount ? Number(sparkVaultCount) : 0;
-    return regular + spark;
-  }, [regularVaultCount, sparkVaultCount]);
+  // Use the actual length of combined vaults (includes both on-chain and backend vaults)
+  // This gives us the real number of unique vaults
+  const actualVaultCount = useMemo(() => {
+    return combinedVaults.length;
+  }, [combinedVaults]);
 
   return {
     vaults: combinedVaults.length > 0 ? combinedVaults : undefined,
-    vaultCount: totalCount,
+    vaultCount: actualVaultCount, // Use actual count of unique vaults
     isLoading:
       isLoadingRegularCount ||
       isLoadingSparkCount ||

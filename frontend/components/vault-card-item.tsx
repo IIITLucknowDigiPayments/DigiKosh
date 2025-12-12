@@ -3,6 +3,7 @@
 import { VaultCard } from "./vault-card";
 import { useBackendVaultData } from "@/hooks/use-vaults";
 import { Address } from "viem";
+import { formatUnits } from "viem";
 
 interface VaultCardItemProps {
   vaultAddress: Address;
@@ -25,10 +26,17 @@ export function VaultCardItem({ vaultAddress }: VaultCardItemProps) {
     return null;
   }
 
-  const totalAssetsNumber = vaultData.totalAssets
-    ? Number(vaultData.totalAssets)
-    : 0;
+  // totalAssets from backend is in base unit (6 decimals for USDC)
+  // Convert from string to BigInt, then format with 6 decimals
+  const totalAssetsBigInt = vaultData.totalAssets
+    ? BigInt(vaultData.totalAssets || "0")
+    : 0n;
+  
+  // Format with 6 decimals (USDC standard)
+  const totalAssetsFormatted = formatUnits(totalAssetsBigInt, 6);
+  const totalAssetsNumber = Number(totalAssetsFormatted);
 
+  // Calculate monthly yield as 0.19% of total assets
   const monthlyYieldNumber = totalAssetsNumber * 0.0019; // 0.19%
   const monthlyYieldFormatted = `$${monthlyYieldNumber.toLocaleString(undefined, {
     maximumFractionDigits: 2,
@@ -41,8 +49,8 @@ export function VaultCardItem({ vaultAddress }: VaultCardItemProps) {
     id: vaultAddress,
     name: vaultData.name || "Unnamed Vault",
     description: vaultData.description || "No description",
-    totalAssets: vaultData.totalAssets
-      ? `$${Number(vaultData.totalAssets).toLocaleString(undefined, {
+    totalAssets: totalAssetsNumber > 0
+      ? `$${totalAssetsNumber.toLocaleString(undefined, {
           maximumFractionDigits: 2,
         })}`
       : "$0",

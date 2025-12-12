@@ -53,7 +53,33 @@ export class EventIndexer {
 							['function getVaultInfo() view returns (string, string, uint256, uint256)'],
 							this.provider
 						)
-						const [name, description, totalAssets, totalSupply] = await vault.getVaultInfo()
+						const [name, description, , totalSupply] = await vault.getVaultInfo()
+						
+						// Calculate totalAssets as sum of contributors' monthly allocations (initially 0)
+						// Contributors' monthlyAllocation is in wei (18 decimals)
+						// Convert to base unit (6 decimals for USDC) by dividing by 10^12
+						const { Contributor } = await import('../models/Contributor')
+						const contributors = await Contributor.find({
+							vault: vaultAddress,
+							isActive: true,
+						})
+						
+						let totalAssetsSumWei = BigInt(0)
+						let contributorCount = 0
+						for (const contrib of contributors) {
+							if (contrib.isActive && contrib.monthlyAllocation) {
+								try {
+									const allocation = BigInt(contrib.monthlyAllocation || '0')
+									totalAssetsSumWei += allocation
+									contributorCount++
+								} catch (e) {
+									console.error(`Error parsing monthlyAllocation for contributor ${contrib.wallet}:`, e)
+								}
+							}
+						}
+						
+						// Convert from wei (18 decimals) to base unit (6 decimals for USDC)
+						const totalAssetsBaseUnit = totalAssetsSumWei / BigInt('1000000000000') // 10^12
 						
 						await Vault.create({
 							address: vaultAddress,
@@ -61,8 +87,10 @@ export class EventIndexer {
 							description,
 							asset: event.args.asset,
 							deployer: event.args.deployer,
-							totalAssets: totalAssets.toString(),
+							totalAssets: totalAssetsBaseUnit.toString(), // Sum of contributors' monthly allocations in base unit (6 decimals)
 							totalSupply: totalSupply.toString(),
+							contributorCount: contributorCount,
+							monthlyYield: '0',
 						})
 					}
 				}
