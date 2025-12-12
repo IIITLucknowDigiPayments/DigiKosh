@@ -164,9 +164,56 @@ export class VaultController {
         deployer: deployer || "0x0000000000000000000000000000000000000000",
         totalAssets: totalAssets || "0",
         totalSupply: totalSupply || "0",
+        contributorCount: 0,
+        monthlyYield: "0",
       });
 
       return res.status(201).json({ success: true, data: vault });
+    } catch (error: any) {
+      return res.status(500).json({ success: false, error: error.message });
+    }
+  }
+
+  async updateVaultStats(req: Request, res: Response) {
+    try {
+      const { address } = req.params;
+      const { totalAssets, contributorCount } = req.body;
+
+      if (!address || !address.match(/^0x[a-fA-F0-9]{40}$/)) {
+        return res
+          .status(400)
+          .json({ success: false, error: "Invalid vault address format" });
+      }
+
+      const vault = await Vault.findOne({ address });
+      if (!vault) {
+        return res
+          .status(404)
+          .json({ success: false, error: "Vault not found" });
+      }
+
+      // Update totalAssets if provided
+      if (totalAssets !== undefined) {
+        vault.totalAssets = totalAssets;
+      }
+
+      // Update contributor count if provided
+      if (contributorCount !== undefined) {
+        vault.contributorCount = contributorCount;
+      }
+
+      // Calculate monthly yield as 0.7% of totalAssets
+      try {
+        const assets = BigInt(vault.totalAssets || "0");
+        const yield07percent = (assets * BigInt(7)) / BigInt(1000); // 0.7% = 7/1000
+        vault.monthlyYield = yield07percent.toString();
+      } catch (e) {
+        vault.monthlyYield = "0";
+      }
+
+      await vault.save();
+
+      return res.status(200).json({ success: true, data: vault });
     } catch (error: any) {
       return res.status(500).json({ success: false, error: error.message });
     }
