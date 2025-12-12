@@ -35,8 +35,8 @@ export function useDashboardStats() {
     query: { refetchInterval: 5000 },
   });
 
-  // Sum on-chain total assets (prefer on-chain when available)
-  const onChainTotal = useMemo(() => {
+  // Sum on-chain total assets (on-chain only, no backend involvement)
+  const totalAssets = useMemo(() => {
     if (!onChainInfos || onChainInfos.length === 0) return 0n;
     let sum = 0n;
     onChainInfos.forEach((info: any) => {
@@ -56,89 +56,46 @@ export function useDashboardStats() {
     return sum;
   }, [onChainInfos]);
 
-  // Fetch backend vaults and compute backend totals
-  const { data: backendVaultsResp } = apiClient
-    ? useQuery({
-        queryKey: ["backend-vaults"],
-        queryFn: async () => {
-          const res = await apiClient.getVaults();
-          return res;
-        },
-        staleTime: 5000,
-        refetchInterval: 10000,
-      })
-    : { data: null };
-
-  const backendTotal = useMemo(() => {
-    if (!backendVaultsResp || !backendVaultsResp.success) return 0;
-    let sum = 0n;
-    backendVaultsResp.data.forEach((v: any) => {
-      const ta = v?.totalAssets;
-      if (ta) {
-        try {
-          // assume stored as string in wei
-          sum += BigInt(ta);
-        } catch (e) {
-          // fallback parse float dollars -> wei assumed not used
-        }
-      }
-    });
-    return sum;
-  }, [backendVaultsResp]);
-
-  // Combine totals by preferring on-chain values when present; otherwise use backend
-  const totalAssets = useMemo(() => {
-    // If on-chain total available, use it; otherwise fall back to backend total
-    if (onChainTotal && onChainTotal > 0n) return onChainTotal;
-    return backendTotal;
-  }, [onChainTotal, backendTotal]);
-
-  // Fetch contributors from API for all vaults
-  const { data: allApiContributors } = useQuery({
-    queryKey: ["all-contributors", vaults],
+  // Fetch backend vault count (number of vault documents in DB)
+  const { data: backendVaultsResp } = useQuery({
+    queryKey: ["backend-vaults-count"],
     queryFn: async () => {
-      if (!vaults || vaults.length === 0) return [];
-
-      const promises = vaults.map((vaultAddress) =>
-        apiClient
-          .getVaultContributors(vaultAddress)
-          .catch(() => ({ success: false, data: [] }))
-      );
-      return Promise.all(promises);
+      return apiClient.getVaults();
     },
-    enabled: !!vaults && vaults.length > 0,
-    staleTime: 0,
+    staleTime: 5000,
     refetchInterval: 10000,
   });
 
-  // Calculate contributor count from API data
-  const contributorCount = useMemo(() => {
-    if (!allApiContributors || allApiContributors.length === 0) {
-      // If API data is not available, try to get from contract for first vault as fallback
-      return 0;
-    }
+  // Backend vault count
+  const backendVaultCount = useMemo(() => {
+    if (!backendVaultsResp || !backendVaultsResp.success) return 0;
+    return Array.isArray(backendVaultsResp.data)
+      ? backendVaultsResp.data.length
+      : 0;
+  }, [backendVaultsResp]);
 
-    const uniqueContributors = new Set<string>();
-
-    allApiContributors.forEach((response: any) => {
-      if (response?.success && Array.isArray(response.data)) {
-        response.data.forEach((contributor: any) => {
-          if (contributor.wallet && contributor.isActive !== false) {
-            uniqueContributors.add(contributor.wallet.toLowerCase());
-          }
-        });
+  // Fetch all contributors from backend (direct count of contributor documents)
+  const { data: allApiContributors } = useQuery({
+    queryKey: ["all-contributors"],
+    queryFn: async () => {
+      // Call getAllContributors endpoint to get all contributors count
+      try {
+        return await apiClient.getContributors();
+      } catch {
+        return { success: false, data: [] };
       }
-    });
-
-    return uniqueContributors.size;
-  }, [allApiContributors]);
-
-  // Get total contributors count
-  const { data: allScheduleIds } = useReadContract({
-    address: distributionAddress,
-    abi: distributionABI,
-    functionName: "getAllScheduleIds",
+    },
+    staleTime: 5000,
+    refetchInterval: 10000,
   });
+
+  // Calculate contributor count from backend document count
+  const contributorCount = useMemo(() => {
+    if (!allApiContributors || !allApiContributors.success) return 0;
+    return Array.isArray(allApiContributors.data)
+      ? allApiContributors.data.length
+      : 0;
+  }, [allApiContributors]);
 
   // Fetch recent (executed) distributions from backend and sum totalAmount
   const { data: recentDistributionsResp } = useQuery({
@@ -150,6 +107,7 @@ export function useDashboardStats() {
     refetchInterval: 15000,
   });
 
+  // Yield earned: backend only (sum of totalAmount from recent distributions)
   const yieldEarned = useMemo(() => {
     if (!recentDistributionsResp || !recentDistributionsResp.success) return 0n;
     let sum = 0n;
@@ -163,7 +121,7 @@ export function useDashboardStats() {
 
   return {
     totalAssets: formatEther(totalAssets),
-    vaultCount,
+    vaultCount: backendVaultCount,
     contributorCount,
     yieldEarned: formatEther(yieldEarned),
     avgAPY: "0", // Would need to calculate from yield
