@@ -23,35 +23,40 @@ export default function ContributorsPage() {
   const [selectedVault, setSelectedVault] = useState<Address | undefined>();
   const { address } = useAccount();
   const { vaultsWithNames } = useAllVaultsWithNames();
+
   const {
     contributors: contributorAddresses,
     contributorData: contractContributorData,
     isLoading: isLoadingContributors,
     refetch: refetchContractContributors,
   } = useVaultContributors(selectedVault);
+
+  // NOTE: we keep the hook available but we DO NOT use its live updates for the UI merging.
+  // This prevents backend additions from automatically appearing in the UI.
   const {
     data: apiContributors,
     isLoading: isLoadingApi,
     refetch: refetchApiContributors,
   } = useApiContributors(selectedVault);
-  const [backendContributors, setBackendContributors] = useState<any[] | null>(
-    null
-  );
 
-  // Refetch contributors when vault selection changes
+  // Local snapshot of backend contributors — only updated when vault changes OR when user clicks Refresh
+  const [backendSnapshot, setBackendSnapshot] = useState<any[] | null>(null);
+
+  // When vault selection changes, refetch on-chain contributors (still live)...
   useEffect(() => {
     if (selectedVault) {
       refetchContractContributors();
-      refetchApiContributors();
+      // DO NOT auto-refetch API contributors here — we want the snapshot to be explicit / controlled.
+      // refetchApiContributors(); // <-- intentionally removed
     }
-  }, [selectedVault, refetchContractContributors, refetchApiContributors]);
+  }, [selectedVault, refetchContractContributors]);
 
-  // Fetch contributors from backend when a vault is selected
+  // Fetch backend contributors snapshot once when vault changes (or set to null if no vault)
   useEffect(() => {
     const apiBase =
       process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
     if (!selectedVault) {
-      setBackendContributors(null);
+      setBackendSnapshot(null);
       return;
     }
 
@@ -63,18 +68,19 @@ export default function ContributorsPage() {
           `${apiBase}/contributors/vault/${selectedVault}`
         );
         const json = await res.json();
-        console.log("Fetched backend contributors response:", json);
+        console.log("Fetched backend contributors response (snapshot):", json);
         if (!mounted) return;
         if (res.ok && json.success) {
-          setBackendContributors(json.data || []);
+          // Take a snapshot — this will be used for merging and won't change until manual refresh
+          setBackendSnapshot(json.data || []);
         } else {
           console.error("Failed to fetch backend contributors", json);
-          setBackendContributors([]);
+          setBackendSnapshot([]);
         }
       } catch (err) {
         if (!mounted) return;
         console.error("Error fetching backend contributors", err);
-        setBackendContributors([]);
+        setBackendSnapshot([]);
       }
     })();
 
@@ -83,10 +89,29 @@ export default function ContributorsPage() {
     };
   }, [selectedVault]);
 
+  // Manual refresh function to explicitly update the backend snapshot
+  const handleRefreshBackendContributors = async () => {
+    if (!selectedVault) return;
+    const apiBase =
+      process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api/v1";
+    try {
+      const res = await fetch(`${apiBase}/contributors/vault/${selectedVault}`);
+      const json = await res.json();
+      console.log("Manual refresh backend contributors response:", json);
+      if (res.ok && json.success) {
+        setBackendSnapshot(json.data || []);
+      } else {
+        console.error("Failed to refresh backend contributors", json);
+      }
+    } catch (err) {
+      console.error("Error refreshing backend contributors", err);
+    }
+  };
+
   const normalizedBackendContributors = useMemo(() => {
-    if (!backendContributors || !Array.isArray(backendContributors)) return [];
-    console.log("Normalizing backend contributors:", backendContributors);
-    return backendContributors.map((c: any) => ({
+    if (!backendSnapshot || !Array.isArray(backendSnapshot)) return [];
+    console.log("Normalizing backend contributors snapshot:", backendSnapshot);
+    return backendSnapshot.map((c: any) => ({
       id: c._id || c.wallet,
       name: c.name || "Unnamed Contributor",
       role: c.role || "No role",
@@ -102,7 +127,7 @@ export default function ContributorsPage() {
         ? new Date(c.createdAt).toISOString().split("T")[0]
         : "N/A",
     }));
-  }, [backendContributors]);
+  }, [backendSnapshot]);
 
   const contributors = useMemo(() => {
     if (!selectedVault) return [];
@@ -110,30 +135,20 @@ export default function ContributorsPage() {
     // Use contract data as primary source (it's always up-to-date)
     if (contractContributorData && contractContributorData.length > 0) {
       // Create a map of API data by wallet address for merging
-      // const apiDataMap = new Map()
-      // if (apiContributors?.success && apiContributors.data) {
-      //   apiContributors.data.forEach((c: any) => {
-      //     apiDataMap.set(c.wallet?.toLowerCase(), c)
-      //   })
-      // }
-
-      const apiDataMap = new Map();
-      // prefer hook data, fall back to explicit backend fetch
-      const apiList =
-        apiContributors?.success && apiContributors.data
-          ? apiContributors.data
-          : backendContributors;
+      const apiDataMap = new Map<string, any>();
+      // Use the snapshot (backendSnapshot) — NOT the live hook results.
+      const apiList = backendSnapshot;
       if (apiList && Array.isArray(apiList)) {
         apiList.forEach((c: any) => {
-          apiDataMap.set(c.wallet?.toLowerCase(), c);
+          apiDataMap.set(String(c.wallet || "").toLowerCase(), c);
         });
       }
 
-      // Map contract data, merging with API data when available
+      // Map contract data, merging with API snapshot when available
       return contractContributorData
         .filter((c) => c.isActive) // Only show active contributors
         .map((c) => {
-          const apiData = apiDataMap.get(c.wallet?.toLowerCase());
+          const apiData = apiDataMap.get(String(c.wallet || "").toLowerCase());
           return {
             id: apiData?._id || c.wallet,
             name: c.name || apiData?.name || "Unnamed Contributor",
@@ -153,9 +168,9 @@ export default function ContributorsPage() {
         });
     }
 
-    // Fallback to API data if contract data is not available
-    if (apiContributors?.success && apiContributors.data) {
-      return apiContributors.data.map((c: any) => ({
+    // Fallback to backend snapshot if contract data is not available
+    if (backendSnapshot && Array.isArray(backendSnapshot)) {
+      return backendSnapshot.map((c: any) => ({
         id: c._id || c.wallet,
         name: c.name,
         role: c.role,
@@ -176,10 +191,8 @@ export default function ContributorsPage() {
     return [];
   }, [
     selectedVault,
-    apiContributors,
     contractContributorData,
-    backendContributors,
-    normalizedBackendContributors,
+    backendSnapshot, // react to explicit snapshot changes only
   ]);
 
   const filteredContributors = useMemo(() => {
@@ -214,12 +227,20 @@ export default function ContributorsPage() {
             Manage team members and allocations
           </p>
         </div>
-        <Button
-          onClick={() => setShowAddModal(true)}
-          className="bg-primary hover:bg-primary/90"
-        >
-          + Add Contributor
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            onClick={handleRefreshBackendContributors}
+            className="bg-secondary hover:bg-secondary/90"
+          >
+            Refresh contributors
+          </Button>
+          <Button
+            onClick={() => setShowAddModal(true)}
+            className="bg-primary hover:bg-primary/90"
+          >
+            + Add Contributor
+          </Button>
+        </div>
       </div>
 
       {vaultsWithNames && vaultsWithNames.length > 0 && (
