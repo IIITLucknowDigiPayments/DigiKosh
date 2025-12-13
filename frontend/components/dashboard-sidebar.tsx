@@ -1,25 +1,25 @@
-"use client"
+"use client";
 
-import Link from "next/link"
-import { usePathname } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 interface DashboardSidebarProps {
-  onCreateVault?: () => void
+  onCreateVault?: () => void;
 }
 
 export function DashboardSidebar({ onCreateVault }: DashboardSidebarProps) {
-  const pathname = usePathname()
+  const pathname = usePathname();
 
   const navItems = [
     { href: "/dashboard", label: "Overview", icon: "📊" },
     { href: "/dashboard/vaults", label: "Vaults", icon: "🏦" },
     { href: "/dashboard/contributors", label: "Contributors", icon: "👥" },
-    { href: "/dashboard/voting", label: "Voting", icon: "🗳️" },
-    { href: "/dashboard/impact", label: "Impact", icon: "🎯" },
+    // { href: "/dashboard/voting", label: "Voting", icon: "🗳️" },
+    // { href: "/dashboard/impact", label: "Impact", icon: "🎯" },
     { href: "/dashboard/payouts", label: "Payouts", icon: "💸" },
-  ]
+  ];
 
   return (
     <aside className="w-64 bg-card border-r border-border overflow-y-auto">
@@ -37,7 +37,10 @@ export function DashboardSidebar({ onCreateVault }: DashboardSidebarProps) {
           </Button>
         </Link>
 
-        <Button onClick={onCreateVault} className="w-full bg-primary hover:bg-primary/90 mb-8">
+        <Button
+          onClick={onCreateVault}
+          className="w-full bg-primary hover:bg-primary/90 mb-8"
+        >
           + Create Vault
         </Button>
 
@@ -59,5 +62,5 @@ export function DashboardSidebar({ onCreateVault }: DashboardSidebarProps) {
         </nav>
       </div>
     </aside>
-  )
+  );
 }
